@@ -1,0 +1,46 @@
+/* Container for all columns sitting side-by-side */
+.cryptex-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 40px auto;
+}
+
+/* Individual column wheel styling */
+.column-wheel-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Limit visible viewport height to exactly 3 letters */
+.letter-window {
+    height: 150px;       /* 3 rows of 50px letters */
+    overflow: hidden;    /* Hide letters pushing past the top or bottom */
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    background: #fdfdfd;
+}
+
+/* Container inside the window holding the actual letters */
+.letter-strip {
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease-out; /* Smooth physical turn animation */
+}
+
+.letter-cell {
+    height: 50px;
+    width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* Highlight the solve row in the center */
+.solve-row-highlight {
+    border: 2px solid #f29f05; /* Sleek yellow border */
+    background: rgba(242, 159, 5, 0.1);
+}
