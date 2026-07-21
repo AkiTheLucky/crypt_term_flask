@@ -240,7 +240,7 @@ def create_perfect_board_snapshot(cryptex_matrix, term, box_start_x, box_start_y
 #draw matrix to screen logic here:
 def draw_cryptex_board(cryptex_matrix, term, active_column_index):
     #print clear screen to the terminal
-    print(term.clear)
+
 
 
     #draw a box around my game
@@ -428,6 +428,33 @@ def generate_playable_board():
             # to "continue" back to the top and try again with a new word!
             pass 
 
+# Now, in your main code, you just call this ONE function:
+
+#win condition global variable
+player_won = False
+
+# print it for now, so i can see whats happening! 
+
+theme_word, cryptex_matrix = generate_playable_board()
+unfiltered_thematic_bucket = get_thematic_bucket(theme_word) 
+thematic_bucket_list = arrange_column_words(theme_word, unfiltered_thematic_bucket)
+
+print(theme_word)
+print("\n")
+print(arrange_column_words(theme_word, unfiltered_thematic_bucket))
+print("\n")
+print(build_cryptex_matrix(theme_word, thematic_bucket_list))
+
+# 1. Calculate minimum required size to draw the game
+required_width = (len(cryptex_matrix) * 4) + 12  + 65 + 40#ish for the title + instructions
+required_height = (len(cryptex_matrix[0])) + 8
+
+
+
+cryptex_matrix = build_cryptex_matrix(theme_word, thematic_bucket_list)
+#actually do the drawing in a while loop to handle issues with the terminal
+#this is actually the main game loop??? wow oh lol, its not. its further down
+    
 # -----------------------------
 
 @app.route("/")

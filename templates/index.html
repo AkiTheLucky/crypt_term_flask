@@ -1,0 +1,19 @@
+<div class="game-wrapper">
+    <h1>CrypTerm</h1>
+    
+    <div class="controls">
+        <button id="new-game-btn">Load New Puzzle</button>
+        <!-- The Hint Button is back! -->
+        <button id="hint-btn" style="display: none;">Get a Hint</button> 
+    </div>
+
+    <!-- The Hint Text Display -->
+    <p id="hint-text" style="color: #666; font-style: italic; min-height: 24px;"></p>
+    
+    <!-- We wrap the board so we can overlay the Solve Row -->
+    <div id="game-board-wrapper" style="position: relative; display: inline-block; margin-top: 20px;">
+        <!-- The fixed Target Row overlay -->
+        <div id="solve-row-overlay"></div> 
+        <div id="game-board" class="cryptex-container"></div>
+    </div>
+</div>
