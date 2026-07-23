@@ -1,19 +1,135 @@
-<div class="game-wrapper">
-    <h1>CrypTerm</h1>
-    
-    <div class="controls">
-        <button id="new-game-btn">Load New Puzzle</button>
-        <!-- The Hint Button is back! -->
-        <button id="hint-btn" style="display: none;">Get a Hint</button> 
-    </div>
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>crypTerm.io</title>
+    <!-- Pico.css for instant dark theme -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        /* Force the body to fit 100% of screen height without scrolling */
+        html, body {
+            height: 100dvh;
+            margin: 0;
+            padding: 0.5rem 1rem;
+            overflow: hidden; /* Stops vertical and horizontal scrolling */
+        }
 
-    <!-- The Hint Text Display -->
-    <p id="hint-text" style="color: #666; font-style: italic; min-height: 24px;"></p>
-    
-    <!-- We wrap the board so we can overlay the Solve Row -->
-    <div id="game-board-wrapper" style="position: relative; display: inline-block; margin-top: 20px;">
-        <!-- The fixed Target Row overlay -->
-        <div id="solve-row-overlay"></div> 
-        <div id="game-board" class="cryptex-container"></div>
-    </div>
-</div>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Evenly spaces Header, Cryptex, and D-Pad */
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-top: 0.5rem;
+        }
+
+        header h1 {
+            margin-bottom: 0;
+            font-size: clamp(1.5rem, 4vh, 2.5rem);
+        }
+
+        header p {
+            margin-bottom: 0;
+            font-size: clamp(0.8rem, 2vh, 1rem);
+        }
+
+        /* The Cryptex Grid */
+        .cryptex-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.4rem;
+            font-family: monospace;
+            font-size: clamp(1rem, 2.5vh, 1.5rem);
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.2rem;
+            border: 2px solid transparent;
+            border-radius: 8px;
+        }
+
+        .column.active {
+            border-color: var(--pico-primary);
+        }
+
+        /* Sizing cells based on screen HEIGHT so it never overflows */
+        .letter-cell {
+            width: clamp(26px, 4.5vh, 42px);
+            height: clamp(26px, 4.5vh, 42px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .letter-cell.target-row {
+            background-color: var(--pico-primary-background);
+            color: var(--pico-primary-inverse);
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        /* Sizing D-Pad buttons based on screen HEIGHT */
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, clamp(40px, 7vh, 55px));
+            grid-template-rows: repeat(3, clamp(40px, 7vh, 55px));
+            gap: 5px;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .dpad button {
+            padding: 0;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body class="container">
+
+    <header style="text-align: center; margin-top: 2rem;">
+        <h1>crypTerm</h1>
+        <p>Align the hidden word between the pointers.</p>
+    </header>
+
+    <main>
+        <!-- The Cryptex Grid -->
+        <div class="cryptex-container" id="cryptex">
+            {% for col in columns %}
+            <div class="column {% if loop.first %}active{% endif %}" data-col-index="{{ loop.index0 }}">
+                {% for letter in col %}
+                <div class="letter-cell {% if loop.index0 == pointer_index %}target-row{% endif %}">
+                    {{ letter }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- The win animation status thing -->
+        <div id="game-status">
+
+        </div>
+        <!-- The SNES D-Pad Controls -->
+        <div class="dpad">
+            <div></div>
+            <button onclick="spinColumn('up')">△</button>
+            <div></div>
+            <button onclick="selectColumn('left')">◁</button>
+             <button onclick="checkUnlock()" class="secondary">   </button>
+            <button onclick="selectColumn('right')">▷</button>
+            <div></div>
+            <button onclick="spinColumn('down')">▽</button>
+            <div></div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+</body>
+</html>
