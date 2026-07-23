@@ -6,6 +6,8 @@
     <title>crypTerm.io</title>
     <!-- Pico.css for instant dark theme -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- HTMX CDN -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
         /* Force the body to fit 100% of screen height without scrolling */
         html, body {
@@ -90,19 +92,25 @@
             font-size: 1.2rem;
         }
     </style>
+
 </head>
 <body class="container">
 
     <header style="text-align: center; margin-top: 2rem;">
         <h1>crypTerm</h1>
-        <p>Align the hidden word between the pointers.</p>
+        <p>Align the words to find the hidden theme.</p>
     </header>
 
     <main>
         <!-- The Cryptex Grid -->
+        <!-- In your <main> section, update the cryptex-container columns: -->
         <div class="cryptex-container" id="cryptex">
             {% for col in columns %}
-            <div class="column {% if loop.first %}active{% endif %}" data-col-index="{{ loop.index0 }}">
+            <!-- We attach the target letter for this column directly to the DOM element -->
+            <div class="column {% if loop.first %}active{% endif %}" 
+                data-col-index="{{ loop.index0 }}"
+                data-target-letter="{{ theme_word[loop.index0] }}">
+                
                 {% for letter in col %}
                 <div class="letter-cell {% if loop.index0 == pointer_index %}target-row{% endif %}">
                     {{ letter }}
@@ -116,17 +124,26 @@
         <div id="game-status">
 
         </div>
-        <!-- The SNES D-Pad Controls -->
-        <div class="dpad">
-            <div></div>
-            <button onclick="spinColumn('up')">△</button>
-            <div></div>
-            <button onclick="selectColumn('left')">◁</button>
-             <button onclick="checkUnlock()" class="secondary">   </button>
-            <button onclick="selectColumn('right')">▷</button>
-            <div></div>
-            <button onclick="spinColumn('down')">▽</button>
-            <div></div>
+        <!-- Controls Wrapper -->
+        <div style="display: flex; flex-direction: column; align-items: flex-end; width: fit-content; margin: 0 auto;">
+            
+            <!-- Hint Button (Pinned to the Top-Right of the D-Pad) -->
+            <button id="hint-btn" onclick="revealHint()" class="outline secondary" style="padding: 0.2rem 0.6rem; font-size: 0.8rem; margin-bottom: 0.5rem; width: auto;">
+                Hint
+            </button>
+
+            <!-- The SNES D-Pad Controls -->
+            <div class="dpad">
+                <div></div>
+                <button onclick="spinColumn('up')">△</button>
+                <div></div>
+                <button onclick="selectColumn('left')">◁</button>
+                <button onclick="checkWordAutomatically()" class="secondary"> </button>
+                <button onclick="selectColumn('right')">▷</button>
+                <div></div>
+                <button onclick="spinColumn('down')">▽</button>
+                <div></div>
+            </div>
         </div>
     </main>
 

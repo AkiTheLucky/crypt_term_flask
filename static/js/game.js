@@ -1,4 +1,7 @@
 let activeColumnIndex = 0;
+let isHintOnCooldown = false;
+const COOLDOWN_SECONDS = 5;
+
 
 function selectColumn(direction) {
     const columns = document.querySelectorAll('.column');
@@ -21,10 +24,8 @@ function spinColumn(direction) {
     const letters = cells.map(cell => cell.textContent.trim());
 
     if (direction === 'up') {
-        // Shift letters up: first item moves to the end
         letters.push(letters.shift());
     } else if (direction === 'down') {
-        // Shift letters down: last item moves to the beginning
         letters.unshift(letters.pop());
     }
 
@@ -32,19 +33,76 @@ function spinColumn(direction) {
     cells.forEach((cell, index) => {
         cell.textContent = letters[index] || " ";
     });
-    
+
+    // 🚀 Check the word automatically after every spin!
+    checkWordAutomatically();
 }
 
-function checkUnlock() {
+function checkWordAutomatically() {
     // Collect the letters currently sitting in the target row
     const targetCells = document.querySelectorAll('.letter-cell.target-row');
-    let alignedWord = "";
-    targetCells.forEach(cell => alignedWord += cell.textContent.trim());
+    let currentWord = "";
+    targetCells.forEach(cell => currentWord += cell.textContent.trim());
 
-    alert("Current Aligned Word: " + alignedWord);
+    // Fire a silent background check to Flask via HTMX
+    if (typeof htmx !== 'undefined') {
+        htmx.ajax('POST', '/validate', {
+            values: { word: currentWord },
+            target: '#game-status',
+            swap: 'innerHTML'
+        });
+    }
 }
 
-// Listen for physical keyboard inputs
+
+function revealHint() {
+    // 1. Guard check: do nothing if on cooldown
+    if (isHintOnCooldown) return;
+
+    // 2. Get the target letter for the currently active column
+    const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
+    const targetLetter = activeColumn.dataset.targetLetter;
+
+    if (!targetLetter) return;
+
+    // 3. Spin until the target letter lands in the target row
+    let targetCell = activeColumn.querySelector('.letter-cell.target-row');
+    let safetyCounter = 0; // Prevents infinite loops just in case
+
+    while (targetCell.textContent.trim() !== targetLetter && safetyCounter < 15) {
+        spinColumn('up'); // Re-uses your existing spin algorithm!
+        targetCell = activeColumn.querySelector('.letter-cell.target-row');
+        safetyCounter++;
+    }
+
+    // 4. Start the 3-second countdown timer
+    startHintCooldown();
+}
+
+function startHintCooldown() {
+    isHintOnCooldown = true;
+    const hintBtn = document.getElementById('hint-btn');
+    let timeRemaining = COOLDOWN_SECONDS;
+
+    if (hintBtn) {
+        hintBtn.disabled = true;
+        hintBtn.textContent = `Cooldown (${timeRemaining}s)...`;
+
+        const timer = setInterval(() => {
+            timeRemaining--;
+            if (timeRemaining > 0) {
+                hintBtn.textContent = `Cooldown (${timeRemaining}s)...`;
+            } else {
+                clearInterval(timer);
+                hintBtn.disabled = false;
+                hintBtn.textContent = "Hint";
+                isHintOnCooldown = false;
+            }
+        }, 1000);
+    }
+}
+
+// 5. Update keyboard controls to support 'E' / 'e' for hints
 document.addEventListener('keydown', (event) => {
     switch (event.key) {
         case 'ArrowLeft':
@@ -60,7 +118,11 @@ document.addEventListener('keydown', (event) => {
             spinColumn('down');
             break;
         case 'Enter':
-            checkUnlock();
+            checkWordAutomatically();
+            break;
+        case 'e':
+        case 'E':
+            revealHint();
             break;
     }
 });
