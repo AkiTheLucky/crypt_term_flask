@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>crypTerm.io - Archive</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        body {
+            max-width: 600px; /* Keep the list centered and not too wide on desktop */
+            margin: 0 auto;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+        
+        header {
+            margin-bottom: 2rem;
+        }
+        
+        .puzzle-link {
+            display: block;
+            margin-bottom: 1rem;
+            text-decoration: none;
+        }
+        
+        /* Make each date look like a sleek terminal button */
+        .puzzle-card {
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--pico-muted-border-color);
+            color: var(--pico-color);
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .puzzle-card:hover {
+            background-color: var(--pico-card-sectioning-background-color);
+            border-color: var(--pico-primary);
+        }
+    </style>
+</head>
+<body class="container">
+
+    <header>
+        <h1>crypTerm Archive</h1>
+        <p>Previous Puzzles</p>
+        <a href="/">← Return to Today</a>
+    </header>
+
+    <main>
+        <!-- Loop through the puzzles from the database -->
+        {% for puzzle in puzzles %}
+            <!-- This creates a link to /play/2026-07-20 etc. -->
+            <a href="/play/{{ puzzle.play_date }}" class="puzzle-link">
+                <div class="puzzle-card">
+                    <!-- .strftime formats the date nicely (e.g., July 24, 2026) -->
+                    <strong>{{ puzzle.play_date.strftime('%B %d, %Y') }}</strong>
+                </div>
+            </a>
+        {% else %}
+            <p>No historic puzzles found in the database.</p>
+        {% endfor %}
+    </main>
+
+</body>
+</html>
