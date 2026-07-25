@@ -102,6 +102,9 @@
     <header style="display: flex; flex-direction: column; align-items: center; margin-top: 1rem; margin-bottom: 0.11rem;">
         <h1 style="margin-bottom: 0;">crypTerm</h1>
         
+        <!-- We hide the date here so JavaScript can easily read it -->
+        <input type="hidden" id="current-puzzle-date" value="{{ play_date }}">
+
         <!-- This wrapper hugs the width of the paragraph text -->
         <div style="width: fit-content;">
             <p style="margin-bottom: 0.2rem;">Align the hidden word between the pointers.</p>

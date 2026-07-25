@@ -2,6 +2,28 @@ let activeColumnIndex = 0;
 let isHintOnCooldown = false;
 const COOLDOWN_SECONDS = 5;
 let isGameWon = false;
+const puzzleDateInput = document.getElementById('current-puzzle-date');
+const puzzleDate = puzzleDateInput ? puzzleDateInput.value : 'unknown_date';
+
+// We create a unique key for today (e.g., "crypTerm_won_2026-07-25")
+const winStorageKey = `crypTerm_won_${puzzleDate}`;
+
+// 2. CHECK MEMORY ON LOAD: Did they already win this puzzle?
+if (localStorage.getItem(winStorageKey) === 'true') {
+    isGameWon = true; // Instantly lock the game!
+    
+    // Wait for the HTML to load, then update the UI
+    window.addEventListener('DOMContentLoaded', () => {
+        const hintBtn = document.getElementById('hint-btn');
+        if (hintBtn) hintBtn.disabled = true;
+        
+        const timerDisplay = document.getElementById('timer-display');
+        if (timerDisplay) {
+            timerDisplay.textContent = "SOLVED";
+            timerDisplay.style.color = "var(--pico-ins-color)"; // Make it green!
+        }
+    });
+}
 
 function selectColumn(direction) {
     if (isGameWon) return; // 🛑 Stop if won
@@ -158,6 +180,9 @@ function triggerWin() {
     // 1. Lock the game
     isGameWon = true;
     
+    // 👇 WRITE TO MEMORY: Save the win permanently in the browser!
+    localStorage.setItem(winStorageKey, 'true');
+
     // 2. Disable the hint button
     const hintBtn = document.getElementById('hint-btn');
     if (hintBtn) hintBtn.disabled = true;
