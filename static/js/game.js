@@ -129,19 +129,69 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// Listen for the signal from Flask/HTMX!
-document.body.addEventListener('puzzleSolved', function() {
-    isGameWon = true; // Lock the game state
-    
-    // Disable the Hint button visually
-    const hintBtn = document.getElementById('hint-btn');
-    if(hintBtn) hintBtn.disabled = true;
 
-    // Fire the confetti!
-    confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#00fa9a', '#ffffff', '#ff007f'] // Cool cyber-ish colors
-    });
-});
+
+function triggerWin() {
+    console.log("Victory triggered!"); // Helps us debug in the browser console
+    
+    // 1. Lock the game
+    isGameWon = true;
+    
+    // 2. Disable the hint button
+    const hintBtn = document.getElementById('hint-btn');
+    if (hintBtn) hintBtn.disabled = true;
+
+    // 3. Fire the triple confetti burst!
+    if (typeof confetti !== 'undefined') {
+        const fireConfetti = () => {
+
+            const randomX = Math.random() * 0.6 + 0.2; 
+            const randomY = Math.random() * 0.4 + 0.3;
+
+
+            confetti({
+                particleCount: 150,
+                spread: 80,
+                origin: { x: randomX, y: randomY },
+                colors: ['#00fa9a', '#ffffff', '#ff007f']
+            });
+        };
+
+        fireConfetti(); // 1st shot (Immediate)
+        setTimeout(fireConfetti, 300); // 2nd shot (0.3s delay)
+        setTimeout(fireConfetti, 600); // 3rd shot (0.6s delay)
+
+    } else {
+        console.error("Confetti library is missing from index.html!");
+    }
+}
+
+// Timer State
+const startTime = Date.now();
+let timerInterval;
+
+function startTimer() {
+    const timerDisplay = document.getElementById('timer-display');
+    if (!timerDisplay) return;
+
+    timerInterval = setInterval(() => {
+        // If they win, stop the clock!
+        if (isGameWon) {
+            clearInterval(timerInterval);
+            return;
+        }
+        
+        // Calculate elapsed time
+        const elapsedMillis = Date.now() - startTime;
+        const totalSeconds = Math.floor(elapsedMillis / 1000);
+        
+        // Format into MM:SS (e.g., 03:05)
+        const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        
+        timerDisplay.textContent = `${minutes}:${seconds}`;
+    }, 1000); // Ticks every 1000ms (1 second)
+}
+
+// Start the timer the exact moment the Javascript loads
+startTimer();

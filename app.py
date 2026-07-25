@@ -213,28 +213,27 @@ def index():
         theme_word=theme_word
     )
 
-
 @app.route("/validate", methods=["POST"])
 def validate():
     user_guess = request.form.get("word", "").upper().strip()
     target_word = session.get("target_word", "").upper().strip()
 
-    # If user hasn't matched yet, return empty or subtle status
     if not user_guess or user_guess != target_word:
         return "" 
 
-    # Create the HTML badge
-    html_badge = '<article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">🎉 <strong>SYSTEM UNLOCKED!</strong> You cracked the crypTerm.</article>'
-    
-    # Wrap it in a response object so we can add headers
-    response = make_response(html_badge)
-    
-    # 🪄 The HTMX Magic: This triggers a JS event named 'puzzleSolved'
-    response.headers["HX-Trigger"] = "puzzleSolved"
+    # We return the badge AND a script block. 
+    # HTMX is smart enough to execute the script instantly upon swap!
+    return '''
+    <article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">
+        <strong>UNLOCKED!</strong> You cracked the crypTerm.
+    </article>
+    <script>
+        if (typeof triggerWin === 'function') {
+            triggerWin();
+        }
+    </script>
+    '''
 
-
-    # If user wins, return the win badge!
-    return '<article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">🎉 <strong>SYSTEM UNLOCKED!</strong> You cracked the crypTerm.</article>'
 
 @app.route("/archive")
 def archive():

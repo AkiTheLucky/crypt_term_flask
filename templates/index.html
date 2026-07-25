@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>crypTerm.io</title>
+    <title>crypTerm</title>
     <!-- Pico.css for instant dark theme -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- HTMX CDN -->
@@ -15,7 +15,6 @@
         html, body {
             height: 100dvh;
             margin: 0;
-            padding: 0.5rem 1rem;
             overflow: hidden; /* Stops vertical and horizontal scrolling */
         }
 
@@ -28,7 +27,7 @@
 
         header {
             text-align: center;
-            margin-top: 0.5rem;
+            margin-top: 0.1rem;
         }
 
         header h1 {
@@ -100,10 +99,21 @@
 </head>
 <body class="container">
 
-    <header style="text-align: center; margin-top: 2rem;">
-        <h1>crypTerm</h1>
-        <p>Align the words to find the hidden theme.</p>
-        <p><a href="/archive" style="font-size: 0.8rem;">View Archive</a></p>
+    <header style="display: flex; flex-direction: column; align-items: center; margin-top: 1rem; margin-bottom: 0.11rem;">
+        <h1 style="margin-bottom: 0;">crypTerm</h1>
+        
+        <!-- This wrapper hugs the width of the paragraph text -->
+        <div style="width: fit-content;">
+            <p style="margin-bottom: 0.2rem;">Align the hidden word between the pointers.</p>
+            
+            <!-- Flexbox row: Timer on the left, Archive on the right -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 0.2rem;">
+                <span id="timer-display" style="font-family: monospace; color: var(--pico-primary); font-weight: bold; font-size: 1.2rem;">
+                    00:00
+                </span>
+                <a href="/archive" style="font-size: 0.8rem;">View Archive</a>
+            </div>
+        </div>
     </header>
 
     <main>
