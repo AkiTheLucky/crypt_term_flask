@@ -1,4 +1,5 @@
 import random
+import os
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone, timedelta
 import json
@@ -13,12 +14,16 @@ app.secret_key = secrets.token_hex(16) # Required for Flask session memory
 # ==========================================
 # 0. DATABASE CONFIGURATION
 # ==========================================
-# This tells Flask to create a local SQLite file named crypterm.db
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crypterm.db'
-# This just turns off an annoying warning message in the terminal <- lol what 
+# Look for a live database URL from Render. If it's missing, default to local SQLite.
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///crypterm.db')
+
+# Fix a known quirk where Render provides 'postgres://' but SQLAlchemy requires 'postgresql://'
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize the database tool
 db = SQLAlchemy(app)
 
 # ==========================================
