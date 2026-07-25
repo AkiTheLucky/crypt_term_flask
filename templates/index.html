@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- HTMX CDN -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <style>
         /* Force the body to fit 100% of screen height without scrolling */
         html, body {
@@ -90,6 +92,8 @@
         .dpad button {
             padding: 0;
             font-size: 1.2rem;
+            /* Taps only, no zooming! */
+            touch-action: manipulation;
         }
     </style>
 

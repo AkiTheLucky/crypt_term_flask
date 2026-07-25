@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 import json
 import requests
 import string
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, make_response
 import secrets
 
 app = Flask(__name__)
@@ -222,6 +222,16 @@ def validate():
     # If user hasn't matched yet, return empty or subtle status
     if not user_guess or user_guess != target_word:
         return "" 
+
+    # Create the HTML badge
+    html_badge = '<article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">🎉 <strong>SYSTEM UNLOCKED!</strong> You cracked the crypTerm.</article>'
+    
+    # Wrap it in a response object so we can add headers
+    response = make_response(html_badge)
+    
+    # 🪄 The HTMX Magic: This triggers a JS event named 'puzzleSolved'
+    response.headers["HX-Trigger"] = "puzzleSolved"
+
 
     # If user wins, return the win badge!
     return '<article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">🎉 <strong>SYSTEM UNLOCKED!</strong> You cracked the crypTerm.</article>'

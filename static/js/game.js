@@ -1,9 +1,10 @@
 let activeColumnIndex = 0;
 let isHintOnCooldown = false;
 const COOLDOWN_SECONDS = 5;
-
+let isGameWon = false;
 
 function selectColumn(direction) {
+    if (isGameWon) return; // 🛑 Stop if won
     const columns = document.querySelectorAll('.column');
     columns[activeColumnIndex].classList.remove('active');
 
@@ -17,6 +18,7 @@ function selectColumn(direction) {
 }
 
 function spinColumn(direction) {
+    if (isGameWon) return; // 🛑 Stop if won
     const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
     const cells = Array.from(activeColumn.querySelectorAll('.letter-cell'));
     
@@ -56,8 +58,8 @@ function checkWordAutomatically() {
 
 
 function revealHint() {
-    // 1. Guard check: do nothing if on cooldown
-    if (isHintOnCooldown) return;
+    if (isGameWon || isHintOnCooldown) return; // 🛑 Stop if won or on cooldown
+    
 
     // 2. Get the target letter for the currently active column
     const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
@@ -125,4 +127,21 @@ document.addEventListener('keydown', (event) => {
             revealHint();
             break;
     }
+});
+
+// Listen for the signal from Flask/HTMX!
+document.body.addEventListener('puzzleSolved', function() {
+    isGameWon = true; // Lock the game state
+    
+    // Disable the Hint button visually
+    const hintBtn = document.getElementById('hint-btn');
+    if(hintBtn) hintBtn.disabled = true;
+
+    // Fire the confetti!
+    confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#00fa9a', '#ffffff', '#ff007f'] // Cool cyber-ish colors
+    });
 });
