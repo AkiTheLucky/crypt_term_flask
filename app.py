@@ -37,6 +37,12 @@ class Puzzle(db.Model):
     # SQLite doesn't have a native Array type, so we store the matrix as a text string
     matrix_json = db.Column(db.Text, nullable=False)
 
+class Score(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    puzzle_date = db.Column(db.Date, nullable=False)
+    nickname = db.Column(db.String(20), nullable=False)
+    time_in_seconds = db.Column(db.Integer, nullable=False)
+
 # ==========================================
 # 0.2. INITIALIZE TABLES
 # ==========================================
@@ -210,7 +216,8 @@ def index():
         "index.html", 
         columns=matrix, 
         pointer_index=pointer_index,
-        theme_word=theme_word
+        theme_word=theme_word,
+        play_date=today
     )
 
 @app.route("/validate", methods=["POST"])
@@ -270,8 +277,51 @@ def play_historic(puzzle_date):
         "index.html", 
         columns=matrix, 
         pointer_index=pointer_index,
-        theme_word=theme_word
+        theme_word=theme_word,
+        play_date=target_date
     )
+
+@app.route("/submit_score", methods=["POST"])
+def submit_score():
+    nickname = request.form.get("nickname", "Anonymous").strip()
+    time_in_seconds = request.form.get("time_in_seconds", type=int)
+    
+    # Safety fallback so the database never crashes with a 'None' error again
+    if time_in_seconds is None:
+        time_in_seconds = 999
+        
+    date_str = request.form.get("puzzle_date")
+    try:
+        play_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        play_date = datetime.now(timezone.utc).date()
+
+    new_score = Score(
+        puzzle_date=play_date,
+        nickname=nickname[:15], 
+        time_in_seconds=time_in_seconds
+    )
+    db.session.add(new_score)
+    db.session.commit()
+    
+    # Tell HTMX to force a redirect to the leaderboard page!
+    response = make_response("")
+    response.headers["HX-Redirect"] = f"/leaderboard/{play_date}"
+    return response
+    
+@app.route("/leaderboard/<puzzle_date>")
+def leaderboard(puzzle_date):
+    try:
+        target_date = datetime.strptime(puzzle_date, '%Y-%m-%d').date()
+    except ValueError:
+        target_date = datetime.now(timezone.utc).date()
+
+    # Query the database: Get top 10 fastest scores for this specific date
+    top_scores = Score.query.filter_by(puzzle_date=target_date)\
+                            .order_by(Score.time_in_seconds.asc())\
+                            .limit(10).all()
+    
+    return render_template("leaderboard.html", scores=top_scores, play_date=target_date)
 
 # ==========================================
 # 0.3. backfill puzzles for archive

@@ -163,5 +163,31 @@
     </main>
 
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+
+        <!-- The Victory Modal -->
+    <dialog id="score-modal">
+        <article>
+            <header>
+                <button aria-label="Close" rel="prev" onclick="document.getElementById('score-modal').removeAttribute('open')"></button>
+                <p><strong>🎉 System Unlocked!</strong></p>
+            </header>
+            
+            <div id="modal-content">
+                <p>You cracked the crypTerm in <span id="modal-time-display" style="color: var(--pico-primary); font-family: monospace; font-weight: bold;"></span>!</p>
+                
+                <!-- HTMX posts the data to Flask without reloading the page -->
+                <form hx-post="/submit_score" hx-target="#modal-content" hx-swap="innerHTML">
+                    <!-- Hidden inputs to secretly pass the timer and the date -->
+                    <input type="hidden" id="hidden-time" name="time_in_seconds" value="">
+                    <input type="hidden" name="puzzle_date" value="{{ play_date }}">
+                    
+                    <label for="nickname">Enter your nickname:</label>
+                    <input type="text" id="nickname" name="nickname" placeholder="e.g. Alex" required maxlength="20">
+                    
+                    <button type="submit">Submit Score</button>
+                </form>
+            </div>
+        </article>
+    </dialog>
 </body>
 </html>

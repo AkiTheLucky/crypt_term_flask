@@ -134,6 +134,27 @@ document.addEventListener('keydown', (event) => {
 function triggerWin() {
     console.log("Victory triggered!"); // Helps us debug in the browser console
     
+    // 1. Calculate the final time
+    const elapsedMillis = Date.now() - startTime;
+    const totalSeconds = Math.floor(elapsedMillis / 1000);
+
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    const formattedTime = `${minutes}:${seconds}`;
+
+    // 2. Inject that time into our HTML Modal safely
+    const hiddenTimeInput = document.getElementById('hidden-time');
+    const modalTimeDisplay = document.getElementById('modal-time-display');
+
+    if (hiddenTimeInput && modalTimeDisplay) {
+        // Force the value as a string so HTMX reads it properly
+        hiddenTimeInput.value = totalSeconds.toString();
+        modalTimeDisplay.textContent = formattedTime;
+    } else {
+        console.error("Missing modal elements in HTML!");
+    }
+
+
     // 1. Lock the game
     isGameWon = true;
     
@@ -161,9 +182,12 @@ function triggerWin() {
         setTimeout(fireConfetti, 300); // 2nd shot (0.3s delay)
         setTimeout(fireConfetti, 600); // 3rd shot (0.6s delay)
 
-    } else {
-        console.error("Confetti library is missing from index.html!");
-    }
+    } 
+    // 4. Open the Score Modal (Wait 1.5 seconds so they can see the confetti first!)
+    setTimeout(() => {
+        const modal = document.getElementById('score-modal');
+        if (modal) modal.setAttribute('open', 'true');
+    }, 3500);
 }
 
 // Timer State

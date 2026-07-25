@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>crypTerm.io - Leaderboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        body { max-width: 600px; margin: 0 auto; padding: 2rem 1rem; text-align: center; }
+        .time-cell { font-family: monospace; font-size: 1.1rem; color: var(--pico-primary); }
+    </style>
+</head>
+<body class="container">
+
+    <header>
+        <h1>Daily Leaderboard</h1>
+        <p>Top times for {{ play_date.strftime('%B %d, %Y') }}</p>
+        <a href="/">← Play Today's crypTerm</a>
+    </header>
+
+    <main>
+        <table role="grid">
+            <thead>
+                <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr>
+                    <td>#{{ loop.index }}</td>
+                    <td><strong>{{ score.nickname }}</strong></td>
+                    <td class="time-cell">
+                        <!-- Convert stored seconds back to MM:SS format via Jinja math -->
+                        {{ "%02d" | format(score.time_in_seconds // 60) }}:{{ "%02d" | format(score.time_in_seconds % 60) }}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No scores yet! Be the first to escape.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+
+</body>
+</html>
