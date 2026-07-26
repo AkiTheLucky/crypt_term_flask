@@ -39,28 +39,24 @@ function selectColumn(direction) {
     columns[activeColumnIndex].classList.add('active');
 }
 
+// Updated: only rotates the canonical middle copy, then mirrors it to the other two
 function spinColumn(direction) {
-    if (isGameWon) return; // 🛑 Stop if won
+    if (isGameWon) return;
     const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
-    const cells = Array.from(activeColumn.querySelectorAll('.letter-cell'));
-    
-    // Extract current letters in this column
+    const track = activeColumn.querySelector('.column-track');
+    const allCells = Array.from(track.querySelectorAll('.letter-cell'));
+    const reelLength = allCells.length / REEL_COPIES;
+    const cells = allCells.slice(reelLength, reelLength * 2);
+
     const letters = cells.map(cell => cell.textContent.trim());
+    if (direction === 'up') letters.push(letters.shift());
+    else if (direction === 'down') letters.unshift(letters.pop());
 
-    if (direction === 'up') {
-        letters.push(letters.shift());
-    } else if (direction === 'down') {
-        letters.unshift(letters.pop());
-    }
-
-    // Re-render letters back into the DOM cells
-    cells.forEach((cell, index) => {
-        cell.textContent = letters[index] || " ";
-    });
-
-    // 🚀 Check the word automatically after every spin!
+    cells.forEach((cell, i) => cell.textContent = letters[i] || " ");
+    syncTrackCopies(track, reelLength);
     checkWordAutomatically();
 }
+
 
 function checkWordAutomatically() {
     // Collect the letters currently sitting in the target row
@@ -248,42 +244,64 @@ startTimer();
 
 // touch controls
 
-let touchStartY = 0;
-let touchEndY = 0;
-// touch controls
-const SWIPE_THRESHOLD = 30; // minimum px movement to count as a swipe
+const REEL_COPIES = 3;
 
-document.querySelectorAll('.column').forEach((columnEl, index) => {
-    let touchStartY = 0;
+function setTrackY(track, y, animate) {
+    track.style.transition = animate ? 'transform 0.15s ease-out' : 'none';
+    track.style.transform = `translateY(${y}px)`;
+}
 
-    columnEl.addEventListener('touchstart', (e) => {
-        touchStartY = e.changedTouches[0].screenY;
-    }, { passive: true });
+function syncTrackCopies(track, reelLength) {
+    const cells = Array.from(track.querySelectorAll('.letter-cell'));
+    const middle = cells.slice(reelLength, reelLength * 2).map(c => c.textContent.trim());
+    cells.slice(0, reelLength).forEach((c, i) => c.textContent = middle[i]);
+    cells.slice(reelLength * 2).forEach((c, i) => c.textContent = middle[i]);
+}
 
-    columnEl.addEventListener('touchmove', (e) => {
-        // Stop the page from scrolling/bouncing while swiping a column
-        e.preventDefault();
-    }, { passive: false });
+function initDragControls() {
+    document.querySelectorAll('.column').forEach((columnEl, colIndex) => {
+        const track = columnEl.querySelector('.column-track');
+        const cellHeight = track.querySelector('.letter-cell').getBoundingClientRect().height;
+        const reelLength = track.children.length / REEL_COPIES;
+        const restY = -reelLength * cellHeight; // resting position = middle copy visible
 
-    columnEl.addEventListener('touchend', (e) => {
-        if (isGameWon) return;
+        let dragStartY = 0;
+        let dragging = false;
 
-        const touchEndY = e.changedTouches[0].screenY;
-        const deltaY = touchEndY - touchStartY;
+        setTrackY(track, restY, false);
 
-        if (Math.abs(deltaY) < SWIPE_THRESHOLD) return; // ignore small taps/jitter
+        columnEl.addEventListener('touchstart', (e) => {
+            if (isGameWon) return;
+            dragging = true;
+            dragStartY = e.touches[0].screenY;
+            track.style.transition = 'none';
+            if (colIndex !== activeColumnIndex) {
+                document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
+                activeColumnIndex = colIndex;
+                columnEl.classList.add('active');
+            }
+        }, { passive: true });
 
-        // Make sure the swiped column becomes the active one
-        if (index !== activeColumnIndex) {
-            document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
-            activeColumnIndex = index;
-            columnEl.classList.add('active');
-        }
+        columnEl.addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            e.preventDefault();
+            const delta = e.touches[0].screenY - dragStartY;
+            setTrackY(track, restY + delta, false);
+        }, { passive: false });
 
-        if (deltaY < 0) {
-            spinColumn('up');   // swiped up
-        } else {
-            spinColumn('down'); // swiped down
-        }
+        columnEl.addEventListener('touchend', (e) => {
+            if (!dragging) return;
+            dragging = false;
+            const delta = e.changedTouches[0].screenY - dragStartY;
+            const steps = Math.round(delta / cellHeight);
+
+            if (steps !== 0) {
+                const direction = steps > 0 ? 'down' : 'up';
+                for (let i = 0; i < Math.abs(steps); i++) spinColumn(direction);
+            }
+            setTrackY(track, restY, false); // snap back instantly, letters already rotated to match
+        });
     });
-});
+}
+
+window.addEventListener('DOMContentLoaded', initDragControls);
