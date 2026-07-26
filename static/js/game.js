@@ -250,23 +250,40 @@ startTimer();
 
 let touchStartY = 0;
 let touchEndY = 0;
+// touch controls
+const SWIPE_THRESHOLD = 30; // minimum px movement to count as a swipe
 
-const columnElement = document.getElementById('your-column-id');
+document.querySelectorAll('.column').forEach((columnEl, index) => {
+    let touchStartY = 0;
 
-columnElement.addEventListener('touchstart', e => {
-    touchStartY = e.changedTouches[0].screenY;
+    columnEl.addEventListener('touchstart', (e) => {
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    columnEl.addEventListener('touchmove', (e) => {
+        // Stop the page from scrolling/bouncing while swiping a column
+        e.preventDefault();
+    }, { passive: false });
+
+    columnEl.addEventListener('touchend', (e) => {
+        if (isGameWon) return;
+
+        const touchEndY = e.changedTouches[0].screenY;
+        const deltaY = touchEndY - touchStartY;
+
+        if (Math.abs(deltaY) < SWIPE_THRESHOLD) return; // ignore small taps/jitter
+
+        // Make sure the swiped column becomes the active one
+        if (index !== activeColumnIndex) {
+            document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
+            activeColumnIndex = index;
+            columnEl.classList.add('active');
+        }
+
+        if (deltaY < 0) {
+            spinColumn('up');   // swiped up
+        } else {
+            spinColumn('down'); // swiped down
+        }
+    });
 });
-
-columnElement.addEventListener('touchend', e => {
-    touchEndY = e.changedTouches[0].screenY;
-    handleSwipe();
-});
-
-function handleSwipe() {
-    if (touchEndY < touchStartY) {
-        // Swiped up: trigger spin up logic
-    }
-    if (touchEndY > touchStartY) {
-        // Swiped down: trigger spin down logic
-    }
-}
