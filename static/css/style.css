@@ -1,0 +1,43 @@
+/* Light Mode Defaults */
+[data-theme="light"],
+:root:not([data-theme="dark"]) {
+  --pico-background-color: #f0eee9;
+  --pico-color: #333333;
+  --pico-h1-color: #1a1a1a;
+  --pico-h2-color: #1a1a1a;
+  --pico-primary: #849974;
+  --pico-primary-background: #849974;
+  --pico-primary-underline: rgba(132, 153, 116, 0.5);
+  --pico-primary-hover: #6b7d5e;
+  --pico-primary-hover-background: #6b7d5e;
+}
+
+/* Dark Mode Overrides */
+@media only screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pico-background-color: #2b2b2b;
+    --pico-color: #f0eee9;
+    --pico-h1-color: #f0eee9;
+    --pico-h2-color: #f0eee9;
+    --pico-primary: #f0eee9;
+    --pico-primary-background: #f0eee9;
+    --pico-primary-underline: rgba(240, 238, 233, 0.5);
+    --pico-primary-hover: #d6d3cc;
+    --pico-primary-hover-background: #d6d3cc;
+    --pico-primary-inverse: #2b2b2b;
+  }
+}
+
+/* Explicit forced dark mode (optional but recommended, since Pico includes this too) */
+[data-theme="dark"] {
+  --pico-background-color: #2b2b2b;
+  --pico-color: #f0eee9;
+  --pico-h1-color: #f0eee9;
+  --pico-h2-color: #f0eee9;
+  --pico-primary: #f0eee9;
+  --pico-primary-background: #f0eee9;
+  --pico-primary-underline: rgba(240, 238, 233, 0.5);
+  --pico-primary-hover: #d6d3cc;
+  --pico-primary-hover-background: #d6d3cc;
+  --pico-primary-inverse: #2b2b2b;
+}

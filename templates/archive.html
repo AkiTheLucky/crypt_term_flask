@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>crypTerm.io - Archive</title>
+    <!-- Pico.css for default styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <style>
         body {
@@ -37,6 +38,10 @@
             border-color: var(--pico-primary);
         }
     </style>
+
+    <!-- Custom theme overrides LAST -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.1">
+
 </head>
 <body class="container">
 
@@ -61,5 +66,13 @@
         {% endfor %}
     </main>
 
+    <footer class="container">
+        <hr>
+        <p style="text-align: center;">
+            <a href="https://www.linkedin.com/in/akram-naser/" target="_blank" rel="noopener noreferrer" class="secondary">
+                Say Hi on LinkedIn
+            </a>
+        </p>
+    </footer>
 </body>
 </html>

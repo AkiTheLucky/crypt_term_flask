@@ -244,3 +244,29 @@ function startTimer() {
 
 // Start the timer the exact moment the Javascript loads
 startTimer();
+
+
+// touch controls
+
+let touchStartY = 0;
+let touchEndY = 0;
+
+const columnElement = document.getElementById('your-column-id');
+
+columnElement.addEventListener('touchstart', e => {
+    touchStartY = e.changedTouches[0].screenY;
+});
+
+columnElement.addEventListener('touchend', e => {
+    touchEndY = e.changedTouches[0].screenY;
+    handleSwipe();
+});
+
+function handleSwipe() {
+    if (touchEndY < touchStartY) {
+        // Swiped up: trigger spin up logic
+    }
+    if (touchEndY > touchStartY) {
+        // Swiped down: trigger spin down logic
+    }
+}

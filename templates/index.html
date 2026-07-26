@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>crypTerm</title>
-    <!-- Pico.css for instant dark theme -->
+    <!-- Pico.css for default styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- HTMX CDN -->
+
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <!-- Canvas Confetti CDN -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
@@ -96,8 +97,18 @@
         }
     </style>
 
+    <!-- Custom theme overrides LAST -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.1">
+
 </head>
 <body class="container">
+
+    <button 
+        class="outline secondary" 
+        style="position: absolute; top: 1rem; right: 1rem; width: auto; padding: 0.2rem 0.6rem; font-size: 0.8rem; margin: 0;" 
+        onclick="document.getElementById('tutorial-modal').showModal()">
+        How to Play
+    </button>
 
     <header style="display: flex; flex-direction: column; align-items: center; margin-top: 1rem; margin-bottom: 0.11rem;">
         <h1 style="margin-bottom: 0;">crypTerm</h1>
@@ -149,6 +160,27 @@
             <button id="hint-btn" onclick="revealHint()" class="outline secondary" style="padding: 0.2rem 0.6rem; font-size: 0.8rem; margin-bottom: 0.5rem; width: auto;">
                 Hint
             </button>
+
+        
+            <!-- The Pico Modal -->
+            <dialog id="tutorial-modal">
+            <article>
+                <header>
+                <button aria-label="Close" rel="prev" onclick="document.getElementById('tutorial-modal').close()"></button>
+                <p><strong>How to Play crypTerm</strong></p>
+                </header>
+                <p>
+                Swipe the columns up or down to shift the letters. Align the hidden word inside the highlighted pointer box. 
+                </p>
+                <p>
+                <em>Press the hint button to reveal the correct letter in the active column! </em>
+                </p>
+                <!-- Add your Nanobana image here -->
+                <img src="/static/tutorial_image.png" alt="Swipe to align letters" />
+            </article>
+            </dialog>
+
+
 
             <!-- The SNES D-Pad Controls -->
             <div class="dpad">

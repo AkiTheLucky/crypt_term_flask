@@ -1,12 +1,13 @@
-import random
-import os
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timezone, timedelta
 import json
-import requests
-import string
-from flask import Flask, render_template, request, session, make_response
+import os
+import random
 import secrets
+import string
+from datetime import datetime, timedelta, timezone
+
+import requests
+from flask import Flask, make_response, render_template, request, session
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16) # Required for Flask session memory
@@ -55,6 +56,7 @@ with app.app_context():
 # 1. CORE GAME GENERATION LOGIC
 # ==========================================
 
+
 def get_theme_word():
     popular_words_list = []
     while not popular_words_list:
@@ -75,9 +77,10 @@ def get_theme_word():
     theme_dict = random.choice(popular_words_list)
     return theme_dict["word"].upper()
 
-
+    
 def get_thematic_bucket(theme_word):
     theme_word = theme_word.upper()
+    
     queries = [
         f"https://api.datamuse.com/words?ml={theme_word}&md=f",
         f"https://api.datamuse.com/words?rel_trg={theme_word}&md=f",
@@ -362,6 +365,6 @@ def backfill_historic_puzzles(days_to_backfill=10):
 if __name__ == "__main__":
 # 1. Force the backfill to run right before the server starts!
     #print("Starting backfill process...")
-    #backfill_historic_puzzles(10)
+    backfill_historic_puzzles(10)
     # run app
     app.run(debug=True)

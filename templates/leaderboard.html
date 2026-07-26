@@ -1,14 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>crypTerm.io - Leaderboard</title>
+    <!-- Pico.css for default styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    
     <style>
         body { max-width: 600px; margin: 0 auto; padding: 2rem 1rem; text-align: center; }
         .time-cell { font-family: monospace; font-size: 1.1rem; color: var(--pico-primary); }
     </style>
+
+    <!-- Custom theme overrides LAST -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.1">
+
 </head>
 <body class="container">
 
