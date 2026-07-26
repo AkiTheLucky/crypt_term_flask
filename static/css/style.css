@@ -41,13 +41,3 @@
   --pico-primary-hover-background: #d6d3cc;
   --pico-primary-inverse: #2b2b2b;
 }
-
-.column {
-    position: relative;
-    overflow: hidden;
-    touch-action: none; /* we're handling the gesture ourselves */
-}
-.column-track {
-    display: flex;
-    flex-direction: column;
-}
