@@ -62,6 +62,22 @@ function spinColumn(direction) {
     checkWordAutomatically();
 }
 
+function initTargetWindows() {
+    document.querySelectorAll('.column').forEach((columnEl) => {
+        const track = columnEl.querySelector('.column-track');
+        const targetCell = track.querySelector('.letter-cell.target-row');
+        if (!targetCell) return;
+
+        const windowEl = document.createElement('div');
+        windowEl.className = 'target-window';
+        windowEl.style.top = `${targetCell.offsetTop}px`;
+        windowEl.style.height = `${targetCell.getBoundingClientRect().height}px`;
+
+        columnEl.insertBefore(windowEl, track);
+    });
+}
+
+
 function checkWordAutomatically() {
     // Collect the letters currently sitting in the target row
     const targetCells = document.querySelectorAll('.letter-cell.target-row');
@@ -301,3 +317,4 @@ function initDragControls() {
 }
 
 window.addEventListener('DOMContentLoaded', initDragControls);
+window.addEventListener('DOMContentLoaded', initTargetWindows);

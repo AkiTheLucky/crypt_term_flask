@@ -43,7 +43,7 @@
 }
 
 .column {
-    /* ...your existing properties stay... */
+    position: relative;   /* anchor point for the overlay */
     overflow: hidden;
     touch-action: none;
 }
@@ -51,5 +51,22 @@
 .column-track {
     display: flex;
     flex-direction: column;
+    position: relative;   /* anchor point for the overlay */
+    z-index: 1;            /* letters render above the highlight */
     transition: none;
+}
+
+/* No more background/color here — this class is now JS-only for identifying the target cell */
+.letter-cell.target-row {
+    font-weight: bold;
+}
+
+.target-window {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background-color: var(--pico-primary-background);
+    border-radius: 4px;
+    z-index: 0;             /* sits behind the letters, in front of the column background */
+    pointer-events: none;   /* don't block touch events meant for the track */
 }
