@@ -70,8 +70,25 @@ function initTargetWindows() {
 
         const windowEl = document.createElement('div');
         windowEl.className = 'target-window';
-        windowEl.style.top = `${targetCell.offsetTop}px`;
-        windowEl.style.height = `${targetCell.getBoundingClientRect().height}px`;
+        
+        // Grab the exact dimensions of the target cell
+        const rect = targetCell.getBoundingClientRect();
+        
+        // 1. Make it 10% smaller (multiply by 0.9)
+        const newHeight = rect.height * 0.82;
+        const newWidth = rect.width * 0.82;
+        
+        // 2. Set your offsets in pixels (tweak these numbers to get it perfect)
+        const offsetRight = 5; 
+        const offsetBottom = 5; 
+
+        // 3. Apply the new sizes
+        windowEl.style.height = `${newHeight}px`;
+        windowEl.style.width = `${newWidth}px`; 
+        
+        // 4. Apply the offsets
+        windowEl.style.top = `${targetCell.offsetTop + offsetBottom}px`;
+        windowEl.style.left = `${targetCell.offsetLeft + offsetRight}px`;
 
         columnEl.insertBefore(windowEl, track);
     });
