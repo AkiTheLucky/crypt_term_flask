@@ -280,7 +280,7 @@ startTimer();
 
 
 // touch controls
-// touch controls (drag-to-scroll, clamped, no wraparound reveal)
+// touch controls (drag-to-scroll, infinite wraparound reveal)
 function initDragControls() {
     document.querySelectorAll('.column').forEach((columnEl, colIndex) => {
         const track = columnEl.querySelector('.column-track');
@@ -307,9 +307,8 @@ function initDragControls() {
             e.preventDefault();
 
             let delta = e.touches[0].screenY - dragStartY;
-            // Clamp so it can't drag further than one cell's worth of peek
-            delta = Math.max(-cellHeight, Math.min(cellHeight, delta));
-
+            
+            // CLAMP REMOVED: Allow the track to translate as far as the user drags
             track.style.transform = `translateY(${delta}px)`;
         }, { passive: false });
 
@@ -318,12 +317,20 @@ function initDragControls() {
             dragging = false;
 
             const delta = e.changedTouches[0].screenY - dragStartY;
-            const steps = Math.round(delta / cellHeight); // will be -1, 0, or 1 given the clamp
+            const steps = Math.round(delta / cellHeight); // Can now be any number!
 
             track.style.transform = 'translateY(0px)'; // snap back instantly
 
-            if (steps > 0) spinColumn('down');
-            else if (steps < 0) spinColumn('up');
+            // Run the spin algorithm X times based on how many steps were dragged
+            if (steps > 0) {
+                for (let i = 0; i < steps; i++) {
+                    spinColumn('down');
+                }
+            } else if (steps < 0) {
+                for (let i = 0; i < Math.abs(steps); i++) {
+                    spinColumn('up');
+                }
+            }
         });
     });
 }
