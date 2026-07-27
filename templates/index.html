@@ -132,25 +132,41 @@
 
     <main>
         <!-- The Cryptex Grid -->
-        <!-- In your <main> section, update the cryptex-container columns: -->
         <div class="cryptex-container" id="cryptex">
             {% for col in columns %}
-            <!-- We attach the target letter for this column directly to the DOM element -->
+            <!-- Added inline relative positioning and hidden overflow to lock the height -->
             <div class="column {% if loop.first %}active{% endif %}" 
+                style="position: relative; overflow: hidden;"
                 data-col-index="{{ loop.index0 }}"
                 data-target-letter="{{ theme_word[loop.index0] }}">
                 
-                <div class="column-track">
+                <div class="column-track" style="position: relative;">
+                    
+                    <!-- TOP BUFFER (Hovers invisibly above the main track) -->
+                    <div style="position: absolute; bottom: 100%; width: 100%;">
+                        {% for letter in col %}
+                        <div class="letter-cell">{{ letter }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- ACTUAL TARGET AREA (This dictates the height of the column) -->
                     {% for letter in col %}
                     <div class="letter-cell {% if loop.index0 == pointer_index %}target-row{% endif %}">
                         {{ letter }}
                     </div>
                     {% endfor %}
+
+                    <!-- BOTTOM BUFFER (Hovers invisibly below the main track) -->
+                    <div style="position: absolute; top: 100%; width: 100%;">
+                        {% for letter in col %}
+                        <div class="letter-cell">{{ letter }}</div>
+                        {% endfor %}
+                    </div>
+
                 </div>
             </div>
             {% endfor %}
         </div>
-        
         <!-- The win animation status thing -->
         <div id="game-status">
 
