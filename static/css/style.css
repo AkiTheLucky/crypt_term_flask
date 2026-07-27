@@ -41,3 +41,15 @@
   --pico-primary-hover-background: #d6d3cc;
   --pico-primary-inverse: #2b2b2b;
 }
+
+.column {
+    /* ...your existing properties stay... */
+    overflow: hidden;
+    touch-action: none;
+}
+
+.column-track {
+    display: flex;
+    flex-direction: column;
+    transition: none;
+}

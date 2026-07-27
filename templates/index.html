@@ -140,11 +140,13 @@
                 data-col-index="{{ loop.index0 }}"
                 data-target-letter="{{ theme_word[loop.index0] }}">
                 
-                {% for letter in col %}
-                <div class="letter-cell {% if loop.index0 == pointer_index %}target-row{% endif %}">
-                    {{ letter }}
+                <div class="column-track">
+                    {% for letter in col %}
+                    <div class="letter-cell {% if loop.index0 == pointer_index %}target-row{% endif %}">
+                        {{ letter }}
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
             {% endfor %}
         </div>

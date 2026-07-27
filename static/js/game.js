@@ -208,7 +208,7 @@ function triggerWin() {
         setTimeout(fireConfetti, 600); // 3rd shot (0.6s delay)
 
     } 
-    // 4. Open the Score Modal (Wait 1.5 seconds so they can see the confetti first!)
+    // 4. Open the Score Modal (Wait 3.5 seconds so they can see the confetti first!)
     setTimeout(() => {
         const modal = document.getElementById('score-modal');
         if (modal) modal.setAttribute('open', 'true');
@@ -247,43 +247,52 @@ startTimer();
 
 
 // touch controls
+// touch controls (drag-to-scroll, clamped, no wraparound reveal)
+function initDragControls() {
+    document.querySelectorAll('.column').forEach((columnEl, colIndex) => {
+        const track = columnEl.querySelector('.column-track');
+        const firstCell = track.querySelector('.letter-cell');
+        const cellHeight = firstCell.getBoundingClientRect().height;
 
-let touchStartY = 0;
-let touchEndY = 0;
-// touch controls
-const SWIPE_THRESHOLD = 30; // minimum px movement to count as a swipe
+        let dragStartY = 0;
+        let dragging = false;
 
-document.querySelectorAll('.column').forEach((columnEl, index) => {
-    let touchStartY = 0;
+        columnEl.addEventListener('touchstart', (e) => {
+            if (isGameWon) return;
+            dragging = true;
+            dragStartY = e.touches[0].screenY;
 
-    columnEl.addEventListener('touchstart', (e) => {
-        touchStartY = e.changedTouches[0].screenY;
-    }, { passive: true });
+            if (colIndex !== activeColumnIndex) {
+                document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
+                activeColumnIndex = colIndex;
+                columnEl.classList.add('active');
+            }
+        }, { passive: true });
 
-    columnEl.addEventListener('touchmove', (e) => {
-        // Stop the page from scrolling/bouncing while swiping a column
-        e.preventDefault();
-    }, { passive: false });
+        columnEl.addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            e.preventDefault();
 
-    columnEl.addEventListener('touchend', (e) => {
-        if (isGameWon) return;
+            let delta = e.touches[0].screenY - dragStartY;
+            // Clamp so it can't drag further than one cell's worth of peek
+            delta = Math.max(-cellHeight, Math.min(cellHeight, delta));
 
-        const touchEndY = e.changedTouches[0].screenY;
-        const deltaY = touchEndY - touchStartY;
+            track.style.transform = `translateY(${delta}px)`;
+        }, { passive: false });
 
-        if (Math.abs(deltaY) < SWIPE_THRESHOLD) return; // ignore small taps/jitter
+        columnEl.addEventListener('touchend', (e) => {
+            if (!dragging) return;
+            dragging = false;
 
-        // Make sure the swiped column becomes the active one
-        if (index !== activeColumnIndex) {
-            document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
-            activeColumnIndex = index;
-            columnEl.classList.add('active');
-        }
+            const delta = e.changedTouches[0].screenY - dragStartY;
+            const steps = Math.round(delta / cellHeight); // will be -1, 0, or 1 given the clamp
 
-        if (deltaY < 0) {
-            spinColumn('up');   // swiped up
-        } else {
-            spinColumn('down'); // swiped down
-        }
+            track.style.transform = 'translateY(0px)'; // snap back instantly
+
+            if (steps > 0) spinColumn('down');
+            else if (steps < 0) spinColumn('up');
+        });
     });
-});
+}
+
+window.addEventListener('DOMContentLoaded', initDragControls);
