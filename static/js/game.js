@@ -256,11 +256,14 @@ function initDragControls() {
 
         let dragStartY = 0;
         let dragging = false;
+        let appliedSteps = 0; // how many full-cell spins we've already applied this drag
+
 
         columnEl.addEventListener('touchstart', (e) => {
             if (isGameWon) return;
             dragging = true;
             dragStartY = e.touches[0].screenY;
+            appliedSteps = 0;
 
             if (colIndex !== activeColumnIndex) {
                 document.querySelectorAll('.column')[activeColumnIndex].classList.remove('active');
@@ -273,24 +276,26 @@ function initDragControls() {
             if (!dragging) return;
             e.preventDefault();
 
-            let delta = e.touches[0].screenY - dragStartY;
-            // Clamp so it can't drag further than one cell's worth of peek
-            delta = Math.max(-cellHeight, Math.min(cellHeight, delta));
+            const totalDelta = e.touches[0].screenY - dragStartY;
+            const totalSteps = Math.trunc(totalDelta / cellHeight); // signed whole cells crossed so far
 
-            track.style.transform = `translateY(${delta}px)`;
+            // Catch up: apply any newly-crossed steps immediately
+            const stepsToApply = totalSteps - appliedSteps;
+            if (stepsToApply !== 0) {
+                const direction = stepsToApply > 0 ? 'down' : 'up';
+                for (let i = 0; i < Math.abs(stepsToApply); i++) spinColumn(direction);
+                appliedSteps = totalSteps;
+            }
+
+            // Whatever's left under a full cell is just a visual nudge
+            const fractional = totalDelta - totalSteps * cellHeight;
+            track.style.transform = `translateY(${fractional}px)`;
         }, { passive: false });
 
-        columnEl.addEventListener('touchend', (e) => {
+        columnEl.addEventListener('touchend', () => {
             if (!dragging) return;
             dragging = false;
-
-            const delta = e.changedTouches[0].screenY - dragStartY;
-            const steps = Math.round(delta / cellHeight); // will be -1, 0, or 1 given the clamp
-
-            track.style.transform = 'translateY(0px)'; // snap back instantly
-
-            if (steps > 0) spinColumn('down');
-            else if (steps < 0) spinColumn('up');
+            track.style.transform = 'translateY(0px)'; // letters are already correct, just clear the nudge
         });
     });
 }
