@@ -75,12 +75,12 @@ function initTargetWindows() {
         const rect = targetCell.getBoundingClientRect();
         
         // 1. Make it 10% smaller (multiply by 0.9)
-        const newHeight = rect.height * 0.82;
-        const newWidth = rect.width * 0.82;
+        const newHeight = rect.height * 0.95;
+        const newWidth = rect.width * 0.95;
         
         // 2. Set your offsets in pixels (tweak these numbers to get it perfect)
-        const offsetRight = 5; 
-        const offsetBottom = 5; 
+        const offsetRight = 4; 
+        const offsetBottom = 4; 
 
         // 3. Apply the new sizes
         windowEl.style.height = `${newHeight}px`;
