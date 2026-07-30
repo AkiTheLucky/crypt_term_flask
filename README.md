@@ -1,17 +1,17 @@
-# 🧩 crypTerm
+# crypTerm
 
 A mobile-friendly, terminal-styled daily word puzzle game built with Flask, HTMX, and Pico.css.
 
 ![crypTerm Screenshot](./static/tutorial_image.png)
 
-## 🎮 How to Play
+## How to Play
 
 - Each vertical column contains letters. They all relate to the code word in some way.
 - Swipe or use the D-Pad controls to shift columns up and down.
 - Align the hidden horizontal target word inside the active center row.
 - Use the **Hint** button if you get stuck!
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend:** Python / Flask , Datamuse API
 - **Frontend:** HTMX, Pico.css, Vanilla JavaScript
@@ -37,10 +37,10 @@ A mobile-friendly, terminal-styled daily word puzzle game built with Flask, HTMX
 - store everything in a postgreSQL for persistance (like leaderboard and daily puzzle) 
 
 
-## 🚀 Running Locally
+##  Running Locally
 
 1. Clone the repository:
-   git clone [https://github.com/AkiTheLucky/crypt_term_flask.git](https://github.com/AkiTheLucky/crypt_term_flask.git)
-   cd crypt_term_flask
-   python3 app.py
-   open in browser
+2. git clone [https://github.com/AkiTheLucky/crypt_term_flask.git](https://github.com/AkiTheLucky/crypt_term_flask.git)
+3. cd crypt_term_flask
+4. python3 app.py
+5. open in browser
