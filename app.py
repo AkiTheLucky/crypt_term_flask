@@ -4,11 +4,10 @@ import random
 import secrets
 import string
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import requests
 from flask import Flask, make_response, render_template, request, session
-from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16) # Required for Flask session memory
@@ -16,41 +15,47 @@ app.secret_key = secrets.token_hex(16) # Required for Flask session memory
 # ==========================================
 # 0. DATABASE CONFIGURATION
 # ==========================================
-# Look for a live database URL from Render. If it's missing, default to local SQLite.
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///crypterm.db')
 
-# Fix a known quirk where Render provides 'postgres://' but SQLAlchemy requires 'postgresql://'
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+D1_API_URL = os.environ.get("D1_API_URL")
+D1_API_SECRET = os.environ.get("D1_API_SECRET")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+def d1_query(sql, params=None):
+    """Send a SQL query to our Cloudflare D1 Worker."""
+    if params is None:
+        params = []
 
-# ==========================================
-# 0.1. DATABASE MODELS
-# ==========================================
-class Puzzle(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    # The date is unique; we only allow one puzzle per day!
-    play_date = db.Column(db.Date, unique=True, nullable=False)
-    theme_word = db.Column(db.String(20), nullable=False)
-    # SQLite doesn't have a native Array type, so we store the matrix as a text string
-    matrix_json = db.Column(db.Text, nullable=False)
+    response = requests.post(
+        D1_API_URL,
+        json={
+            "sql": sql,
+            "params": params
+        },
+        headers={
+            "Authorization": f"Bearer {D1_API_SECRET}"
+        },
+        timeout=10
+    )
 
-class Score(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    puzzle_date = db.Column(db.Date, nullable=False)
-    nickname = db.Column(db.String(20), nullable=False)
-    time_in_seconds = db.Column(db.Integer, nullable=False)
+    response.raise_for_status()
 
-# ==========================================
-# 0.2. INITIALIZE TABLES
-# ==========================================
-# This checks if the database exists, and if not, creates it instantly.
-with app.app_context():
-    db.create_all()
+    data = response.json()
+
+    if not data.get("success"):
+        raise RuntimeError(data.get("error", "D1 query failed"))
+
+    return data["result"]
+
+
+def d1_rows(sql, params=None):
+    """Run a SELECT query and return its rows."""
+    result = d1_query(sql, params)
+    return result.get("results", [])
+
+
+def d1_execute(sql, params=None):
+    """Run an INSERT/UPDATE/DELETE query."""
+    return d1_query(sql, params)
 
 # ==========================================
 # HELPERS
@@ -321,49 +326,58 @@ def generate_playable_board():
 
 
 # ==========================================
-# 2. FLASK ROUTES
+# 2. new cloudflare ROUTES
 # ==========================================
 
 @app.route("/")
 def index():
-    # 1. Get today's date strictly in UTC
+    # Get today's date strictly in UTC
     today = datetime.now(timezone.utc).date()
-    
-    # 2. Ask the database: Do we already have a puzzle for today?
-    daily_puzzle = Puzzle.query.filter_by(play_date=today).first()
+    today_str = today.isoformat()
 
-    if daily_puzzle:
-        # 3a. WE HAVE ONE! Load the saved data.
-        theme_word = daily_puzzle.theme_word
-        
-        # We stored the matrix as a JSON string, so we convert it back into a Python list
-        matrix = json.loads(daily_puzzle.matrix_json)
-        
-        # Optional: A little terminal print so you can see what's happening behind the scenes
+    # Ask D1: Do we already have a puzzle for today?
+    rows = d1_rows(
+        """
+        SELECT theme_word, matrix_json
+        FROM puzzle
+        WHERE play_date = ?
+        LIMIT 1
+        """,
+        [today_str]
+    )
+
+    if rows:
+        # We have one! Load the saved data.
+        theme_word = rows[0]["theme_word"]
+        matrix = json.loads(rows[0]["matrix_json"])
+
         print(f"Loaded existing puzzle for {today}: {theme_word}")
-        
+
     else:
-        # 3b. BRAND NEW DAY! Generate a fresh puzzle.
+        # Brand new day! Generate a fresh puzzle.
         theme_word, matrix = generate_playable_board()
-        
-        # Package it up and save it to the database
-        new_puzzle = Puzzle(
-            play_date=today,
-            theme_word=theme_word,
-            matrix_json=json.dumps(matrix) # Convert list to string for storage
+
+        # Save it to D1.
+        d1_execute(
+            """
+            INSERT INTO puzzle (play_date, theme_word, matrix_json)
+            VALUES (?, ?, ?)
+            """,
+            [
+                today_str,
+                theme_word,
+                json.dumps(matrix)
+            ]
         )
-        db.session.add(new_puzzle)
-        db.session.commit()
-        
+
         print(f"Generated and saved new puzzle for {today}: {theme_word}")
 
-    # 4. The rest of the setup stays exactly the same
-    session['target_word'] = theme_word
+    session["target_word"] = theme_word
     pointer_index = len(matrix[0]) - 1
 
     return render_template(
-        "index.html", 
-        columns=matrix, 
+        "index.html",
+        columns=matrix,
         pointer_index=pointer_index,
         theme_word=theme_word,
         play_date=today
@@ -394,37 +408,59 @@ def validate():
 @app.route("/archive")
 def archive():
     # Fetch all puzzles, sorted by newest date first
-    # We use .all() to get a list of Puzzle objects
-    historic_puzzles = Puzzle.query.order_by(Puzzle.play_date.desc()).all()
-    
+    historic_puzzles = d1_rows(
+        """
+        SELECT id, play_date, theme_word, matrix_json
+        FROM puzzle
+        ORDER BY play_date DESC
+        """
+    )
+
     return render_template("archive.html", puzzles=historic_puzzles)
 
 @app.route("/play/<puzzle_date>")
 def play_historic(puzzle_date):
-    # 1. Convert the URL string (e.g., '2026-07-14') back into a Python Date object
+    # Convert the URL string into a Python date
     try:
-        target_date = datetime.strptime(puzzle_date, '%Y-%m-%d').date()
+        target_date = datetime.strptime(
+            puzzle_date,
+            "%Y-%m-%d"
+        ).date()
     except ValueError:
         return "Invalid date format", 400
 
-    # 2. Look up that specific date in the database
-    historic_puzzle = Puzzle.query.filter_by(play_date=target_date).first()
-    
-    if not historic_puzzle:
+    # Do NOT allow future puzzles to be played
+    today = datetime.now(timezone.utc).date()
+
+    if target_date > today:
+        return "That puzzle isn't available yet.", 404
+
+    # Look up the puzzle in D1
+    rows = d1_rows(
+        """
+        SELECT theme_word, matrix_json
+        FROM puzzle
+        WHERE play_date = ?
+        LIMIT 1
+        """,
+        [target_date.isoformat()]
+    )
+
+    if not rows:
         return "Puzzle not found for this date.", 404
 
-    # 3. Unpack the puzzle data
-    theme_word = historic_puzzle.theme_word
-    matrix = json.loads(historic_puzzle.matrix_json)
-    
-    # 4. VERY IMPORTANT: Set the session target word so the HTMX check & Hint button work!
-    session['target_word'] = theme_word
+    # Unpack the puzzle
+    theme_word = rows[0]["theme_word"]
+    matrix = json.loads(rows[0]["matrix_json"])
+
+    # Set the session target word
+    session["target_word"] = theme_word
     pointer_index = len(matrix[0]) - 1
 
-    # 5. Serve the exact same index.html we use for the daily game!
+    # Serve the exact same game page
     return render_template(
-        "index.html", 
-        columns=matrix, 
+        "index.html",
+        columns=matrix,
         pointer_index=pointer_index,
         theme_word=theme_word,
         play_date=target_date
@@ -433,84 +469,75 @@ def play_historic(puzzle_date):
 @app.route("/submit_score", methods=["POST"])
 def submit_score():
     nickname = request.form.get("nickname", "Anonymous").strip()
-    time_in_seconds = request.form.get("time_in_seconds", type=int)
-    
-    # Safety fallback so the database never crashes with a 'None' error again
+
+    time_in_seconds = request.form.get(
+        "time_in_seconds",
+        type=int
+    )
+
+    # Safety fallback
     if time_in_seconds is None:
         time_in_seconds = 999
-        
+
     date_str = request.form.get("puzzle_date")
+
     try:
-        play_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        play_date = datetime.strptime(
+            date_str,
+            "%Y-%m-%d"
+        ).date()
     except (ValueError, TypeError):
         play_date = datetime.now(timezone.utc).date()
 
-    new_score = Score(
-        puzzle_date=play_date,
-        nickname=nickname[:15], 
-        time_in_seconds=time_in_seconds
+    d1_execute(
+        """
+        INSERT INTO score (
+            puzzle_date,
+            nickname,
+            time_in_seconds
+        )
+        VALUES (?, ?, ?)
+        """,
+        [
+            play_date.isoformat(),
+            nickname[:15],
+            time_in_seconds
+        ]
     )
-    db.session.add(new_score)
-    db.session.commit()
-    
-    # Tell HTMX to force a redirect to the leaderboard page!
+
+    # Tell HTMX to force a redirect to the leaderboard
     response = make_response("")
     response.headers["HX-Redirect"] = f"/leaderboard/{play_date}"
+
     return response
-    
+
 @app.route("/leaderboard/<puzzle_date>")
 def leaderboard(puzzle_date):
     try:
-        target_date = datetime.strptime(puzzle_date, '%Y-%m-%d').date()
+        target_date = datetime.strptime(
+            puzzle_date,
+            "%Y-%m-%d"
+        ).date()
     except ValueError:
         target_date = datetime.now(timezone.utc).date()
 
-    # Query the database: Get top 10 fastest scores for this specific date
-    top_scores = Score.query.filter_by(puzzle_date=target_date)\
-                            .order_by(Score.time_in_seconds.asc())\
-                            .limit(10).all()
-    
-    return render_template("leaderboard.html", scores=top_scores, play_date=target_date)
+    # Get top 10 fastest scores from D1
+    top_scores = d1_rows(
+        """
+        SELECT nickname, time_in_seconds
+        FROM score
+        WHERE puzzle_date = ?
+        ORDER BY time_in_seconds ASC
+        LIMIT 10
+        """,
+        [target_date.isoformat()]
+    )
 
-# ==========================================
-# 0.3. backfill puzzles for archive
-# ==========================================
-# backfill old puzzle for archive page
-def backfill_historic_puzzles(days_to_backfill=10):
-    with app.app_context():
-        # Get today's date strictly in UTC
-        today = datetime.now(timezone.utc).date()
-        
-        for i in range(1, days_to_backfill + 1):
-            # Calculate the date for 'i' days ago
-            past_date = today - timedelta(days=i)
-            
-            # Check if we already generated this day
-            existing_puzzle = Puzzle.query.filter_by(play_date=past_date).first()
-            
-            if not existing_puzzle:
-                # We removed the broad try/except block. 
-                # If this fails, it will now properly tell us exactly why!
-                theme_word, matrix = generate_playable_board()
-                
-                new_puzzle = Puzzle(
-                    play_date=past_date,
-                    theme_word=theme_word,
-                    matrix_json=json.dumps(matrix)
-                )
-                db.session.add(new_puzzle)
-                print(f"Backfilled puzzle for {past_date}: {theme_word}")
-        
-        # Save all the newly generated puzzles at once
-        db.session.commit()
-        print("Backfill complete!")
-
-
-
+    return render_template(
+        "leaderboard.html",
+        scores=top_scores,
+        play_date=target_date
+    )
 
 if __name__ == "__main__":
-# 1. Force the backfill to run right before the server starts!
-    #print("Starting backfill process...")
-    backfill_historic_puzzles(10)
-    # run app
     app.run(debug=True)
