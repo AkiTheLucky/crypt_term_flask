@@ -409,12 +409,18 @@ def validate():
 def archive():
     # Fetch all puzzles, sorted by newest date first
     historic_puzzles = d1_rows(
-        """
-        SELECT id, play_date, theme_word, matrix_json
-        FROM puzzle
-        ORDER BY play_date DESC
-        """
-    )
+    """
+    SELECT id, play_date, theme_word, matrix_json
+    FROM puzzle
+    ORDER BY play_date DESC
+    """
+)
+
+    for puzzle in historic_puzzles:
+        puzzle["play_date"] = datetime.strptime(
+            puzzle["play_date"],
+            "%Y-%m-%d"
+        ).date()
 
     return render_template("archive.html", puzzles=historic_puzzles)
 
