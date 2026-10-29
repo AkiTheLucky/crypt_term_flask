@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>crypTerm.io - Archive</title>
+    <meta name="description" content="Every previous crypTerm daily puzzle, newest first. Replay any date you missed.">
+    <title>crypTerm - puzzle archive</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <!-- Pico.css for default styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <style>
@@ -40,7 +42,7 @@
     </style>
 
     <!-- Custom theme overrides LAST -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
 
 </head>
 <body class="container">

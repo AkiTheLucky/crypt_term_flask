@@ -5,6 +5,11 @@ let isGameWon = false;
 const puzzleDateInput = document.getElementById('current-puzzle-date');
 const puzzleDate = puzzleDateInput ? puzzleDateInput.value : 'unknown_date';
 
+// Columns that have been revealed with the hint button, so the shared result
+// can show how much of the puzzle was actually worked out.
+const hintedColumns = new Set();
+let shareText = '';
+
 // We create a unique key for today (e.g., "crypTerm_won_2026-07-25")
 const winStorageKey = `crypTerm_won_${puzzleDate}`;
 
@@ -39,7 +44,7 @@ function selectColumn(direction) {
     columns[activeColumnIndex].classList.add('active');
 }
 
-function spinColumn(direction) {
+function spinColumn(direction, silent = false) {
     if (isGameWon) return; // 🛑 Stop if won
     const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
     const cells = Array.from(activeColumn.querySelectorAll('.letter-cell'));
@@ -58,8 +63,12 @@ function spinColumn(direction) {
         cell.textContent = letters[index] || " ";
     });
 
-    // 🚀 Check the word automatically after every spin!
-    checkWordAutomatically();
+    // 🚀 Check the word automatically after every player spin.
+    // The hint routine passes silent = true so a single hint doesn't fire a
+    // request for every intermediate rotation.
+    if (!silent) {
+        checkWordAutomatically();
+    }
 }
 
 function initTargetWindows() {
@@ -114,7 +123,6 @@ function checkWordAutomatically() {
 
 function revealHint() {
     if (isGameWon || isHintOnCooldown) return; // 🛑 Stop if won or on cooldown
-    
 
     // 2. Get the target letter for the currently active column
     const activeColumn = document.querySelectorAll('.column')[activeColumnIndex];
@@ -122,17 +130,23 @@ function revealHint() {
 
     if (!targetLetter) return;
 
-    // 3. Spin until the target letter lands in the target row
+    hintedColumns.add(activeColumnIndex);
+
+    // 3. Spin until the target letter lands in the target row.
+    //    Silent spins: the column rotates several times, but we only ask the
+    //    server once, after the letter has actually arrived.
     let targetCell = activeColumn.querySelector('.letter-cell.target-row');
     let safetyCounter = 0; // Prevents infinite loops just in case
 
     while (targetCell.textContent.trim() !== targetLetter && safetyCounter < 15) {
-        spinColumn('up'); // Re-uses your existing spin algorithm!
+        spinColumn('up', true);
         targetCell = activeColumn.querySelector('.letter-cell.target-row');
         safetyCounter++;
     }
 
-    // 4. Start the 3-second countdown timer
+    checkWordAutomatically();
+
+    // 4. Start the cooldown timer
     startHintCooldown();
 }
 
@@ -187,15 +201,12 @@ document.addEventListener('keydown', (event) => {
 
 
 function triggerWin() {
-    console.log("Victory triggered!"); // Helps us debug in the browser console
-    
+    if (isGameWon) return; // Already solved (e.g. a duplicated validate response)
+
     // 1. Calculate the final time
     const elapsedMillis = Date.now() - startTime;
     const totalSeconds = Math.floor(elapsedMillis / 1000);
-
-    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-    const seconds = String(totalSeconds % 60).padStart(2, '0');
-    const formattedTime = `${minutes}:${seconds}`;
+    const formattedTime = formatTime(totalSeconds);
 
     // 2. Inject that time into our HTML Modal safely
     const hiddenTimeInput = document.getElementById('hidden-time');
@@ -209,19 +220,40 @@ function triggerWin() {
         console.error("Missing modal elements in HTML!");
     }
 
+    // 3. Move the reveal (theme word + column words) from /validate into the modal
+    const revealSource = document.getElementById('win-reveal');
+    const revealTarget = document.getElementById('modal-reveal');
+    if (revealSource && revealTarget) {
+        revealTarget.innerHTML = revealSource.innerHTML;
+    }
 
-    // 1. Lock the game
+    const themeEl = document.querySelector('#modal-reveal .reveal-theme');
+    const solvedWord = themeEl ? themeEl.textContent.trim() : '';
+
+    // 4. Lock the game
     isGameWon = true;
-    
+
     // 👇 WRITE TO MEMORY: Save the win permanently in the browser!
     localStorage.setItem(winStorageKey, 'true');
 
-    // 2. Disable the hint button
+    const streak = updateStreak(puzzleDate);
+    const streakLine = document.getElementById('streak-line');
+    const streakCount = document.getElementById('streak-count');
+    if (streakLine && streakCount) {
+        streakCount.textContent = streak;
+        streakLine.hidden = streak < 2;
+    }
+
+    shareText = buildShareText(solvedWord, formattedTime, streak);
+
+    // 5. Disable the hint button
     const hintBtn = document.getElementById('hint-btn');
     if (hintBtn) hintBtn.disabled = true;
 
-    // 3. Fire the triple confetti burst!
-    if (typeof confetti !== 'undefined') {
+    // 6. Fire the triple confetti burst (skipped when motion is reduced)
+    const wantsMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches === false;
+
+    if (wantsMotion && typeof confetti !== 'undefined') {
         const fireConfetti = () => {
 
             const randomX = Math.random() * 0.6 + 0.2; 
@@ -241,11 +273,105 @@ function triggerWin() {
         setTimeout(fireConfetti, 600); // 3rd shot (0.6s delay)
 
     } 
-    // 4. Open the Score Modal (Wait 3.5 seconds so they can see the confetti first!)
+    // 7. Open the Score Modal (Wait 3.5 seconds so they can see the confetti first!)
     setTimeout(() => {
         const modal = document.getElementById('score-modal');
         if (modal) modal.setAttribute('open', 'true');
     }, 3500);
+}
+
+function formatTime(totalSeconds) {
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+// Streak bookkeeping, kept entirely in the browser (no login needed).
+function updateStreak(todayStr) {
+    const STREAK_KEY = 'crypTerm_streak';
+    let state = { last: null, count: 0 };
+
+    try {
+        const raw = localStorage.getItem(STREAK_KEY);
+        if (raw) state = JSON.parse(raw) || state;
+    } catch (err) {
+        state = { last: null, count: 0 };
+    }
+
+    if (state.last === todayStr) return state.count || 1;
+
+    const previousDay = new Date(`${todayStr}T00:00:00Z`);
+    previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+    const yesterdayStr = previousDay.toISOString().slice(0, 10);
+
+    const count = state.last === yesterdayStr ? (state.count || 0) + 1 : 1;
+    localStorage.setItem(STREAK_KEY, JSON.stringify({ last: todayStr, count }));
+    return count;
+}
+
+function buildShareText(solvedWord, formattedTime, streak) {
+    const columnCount = document.querySelectorAll('.column').length;
+    let grid = '';
+    for (let i = 0; i < columnCount; i++) {
+        grid += hintedColumns.has(i) ? '🟨' : '🟩';
+    }
+
+    const lines = [`crypTerm ${puzzleDate}`, grid];
+
+    if (solvedWord) {
+        lines.push(`Solved ${solvedWord} in ${formattedTime}`);
+    } else {
+        lines.push(`Solved in ${formattedTime}`);
+    }
+
+    if (streak > 1) lines.push(`🔥 ${streak} day streak`);
+    lines.push(window.location.origin);
+
+    return lines.join('\n');
+}
+
+async function shareResult() {
+    const feedback = document.getElementById('share-feedback');
+    if (!shareText) return;
+
+    let copied = false;
+
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(shareText);
+            copied = true;
+        } catch (err) {
+            // Permission denied or no transient activation - fall through.
+            copied = false;
+        }
+    }
+
+    if (!copied) {
+        try {
+            copied = copyWithFallback(shareText);
+        } catch (err) {
+            copied = false;
+        }
+    }
+
+    if (feedback) {
+        feedback.textContent = copied
+            ? 'Copied to clipboard'
+            : 'Copy failed - select the text manually';
+    }
+}
+
+function copyWithFallback(text) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(area);
+    return copied;
 }
 
 // Timer State

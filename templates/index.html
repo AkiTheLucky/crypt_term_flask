@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>crypTerm</title>
+    <meta name="description" content="crypTerm is a free daily word puzzle: rotate six columns of a cryptex and line up the hidden word. New puzzle every day, with an archive and leaderboard.">
+    <meta name="theme-color" content="#f0eee9">
+    <title>crypTerm - daily cryptex word puzzle</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <!-- Pico.css for default styling -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- HTMX CDN -->
@@ -12,11 +15,12 @@
     <!-- Canvas Confetti CDN -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <style>
-        /* Force the body to fit 100% of screen height without scrolling */
+        /* Fill the screen, but never clip: a long board or a short viewport
+           (landscape phone) must still be able to reach the D-pad. */
         html, body {
-            height: 100dvh;
+            min-height: 100dvh;
             margin: 0;
-            overflow: hidden; /* Stops vertical and horizontal scrolling */
+            overflow-x: hidden; /* no horizontal scroll from the corner button */
         }
 
         body {
@@ -98,7 +102,7 @@
     </style>
 
     <!-- Custom theme overrides LAST -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
 
 </head>
 <body class="container">
@@ -131,8 +135,14 @@
     </header>
 
     <main>
+        <p class="visually-hidden">
+            The puzzle is a grid of {{ columns|length }} columns of letters. Use the
+            left and right arrow keys to choose a column, the up and down arrow keys
+            to rotate it, and the E key for a hint.
+        </p>
         <!-- The Cryptex Grid -->
-        <div class="cryptex-container" id="cryptex">
+        <div class="cryptex-container" id="cryptex" role="group"
+             aria-label="Cryptex grid, {{ columns|length }} rotating columns of letters">
             {% for col in columns %}
             <!-- Added inline relative positioning and hidden overflow to lock the height -->
             <div class="column {% if loop.first %}active{% endif %}" 
@@ -140,7 +150,7 @@
                 data-col-index="{{ loop.index0 }}"
                 data-target-letter="{{ theme_word[loop.index0] }}">
                 
-                <div class="column-track" style="position: relative;">
+                <div class="column-track" style="position: relative;" aria-hidden="true">
                     
                     <!-- TOP BUFFER (Hovers invisibly above the main track) -->
                     <div style="position: absolute; bottom: 100%; width: 100%;">
@@ -168,7 +178,7 @@
             {% endfor %}
         </div>
         <!-- The win animation status thing -->
-        <div id="game-status">
+        <div id="game-status" role="status" aria-live="polite">
 
         </div>
         <!-- Controls Wrapper -->
@@ -197,22 +207,24 @@
                 <em>Press the hint button to reveal the correct letter in the active column! </em>
                 </p>
                 
-                <img src="/static/tutorial_image.png" alt="Swipe to align letters" />
+                <img src="{{ url_for('static', filename='tutorial_image.webp') }}"
+                     alt="Swipe or drag a column up and down to align a letter with the highlighted pointer row"
+                     width="800" height="960" loading="lazy" decoding="async" />
             </article>
             </dialog>
 
 
 
             <!-- The SNES D-Pad Controls -->
-            <div class="dpad">
+            <div class="dpad" role="group" aria-label="Cryptex controls">
                 <div></div>
-                <button onclick="spinColumn('up')">△</button>
+                <button type="button" onclick="spinColumn('up')" aria-label="Rotate active column up">△</button>
                 <div></div>
-                <button onclick="selectColumn('left')">◁</button>
-                <button onclick="checkWordAutomatically()" class="secondary"> </button>
-                <button onclick="selectColumn('right')">▷</button>
+                <button type="button" onclick="selectColumn('left')" aria-label="Select previous column">◁</button>
+                <button type="button" onclick="checkWordAutomatically()" class="secondary" aria-label="Check answer">✓</button>
+                <button type="button" onclick="selectColumn('right')" aria-label="Select next column">▷</button>
                 <div></div>
-                <button onclick="spinColumn('down')">▽</button>
+                <button type="button" onclick="spinColumn('down')" aria-label="Rotate active column down">▽</button>
                 <div></div>
             </div>
         </div>
@@ -230,7 +242,21 @@
             
             <div id="modal-content">
                 <p>You cracked the crypTerm in <span id="modal-time-display" style="color: var(--pico-primary); font-family: monospace; font-weight: bold;"></span>!</p>
-                
+
+                <!-- Filled in by triggerWin() from the reveal returned by /validate -->
+                <div id="modal-reveal"></div>
+
+                <p id="streak-line" hidden>
+                    🔥 <strong><span id="streak-count">1</span></strong> day streak
+                </p>
+
+                <div class="share-row">
+                    <button type="button" id="share-btn" class="outline" onclick="shareResult()">
+                        Share result
+                    </button>
+                    <span id="share-feedback" role="status" aria-live="polite"></span>
+                </div>
+
                 <!-- HTMX posts the data to Flask without reloading the page -->
                 <form hx-post="/submit_score" hx-target="#modal-content" hx-swap="innerHTML">
                     <!-- Hidden inputs to secretly pass the timer and the date -->

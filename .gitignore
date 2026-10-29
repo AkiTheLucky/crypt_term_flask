@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Cloudflare Wrangler local cache (contains account details)
+.wrangler/
+

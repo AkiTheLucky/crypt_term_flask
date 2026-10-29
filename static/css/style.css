@@ -5,11 +5,14 @@
   --pico-color: #333333;
   --pico-h1-color: #1a1a1a;
   --pico-h2-color: #1a1a1a;
-  --pico-primary: #849974;
-  --pico-primary-background: #849974;
-  --pico-primary-underline: rgba(132, 153, 116, 0.5);
-  --pico-primary-hover: #6b7d5e;
-  --pico-primary-hover-background: #6b7d5e;
+  /* Darkened from #849974 so text/links clear 4.5:1 on the Cloud Dancer ground
+     (the old sage was 2.6:1). White letters on the tiles sit at 5.5:1. */
+  --pico-primary: #4f6b3e;
+  --pico-primary-background: #567143;
+  --pico-primary-underline: rgba(79, 107, 62, 0.5);
+  --pico-primary-hover: #3f5632;
+  --pico-primary-hover-background: #3f5632;
+  --pico-primary-inverse: #ffffff;
 }
 
 /* Dark Mode Overrides */
@@ -71,3 +74,109 @@
     pointer-events: none;   /* don't block touch events meant for the track */
     box-sizing: border-box;
   }
+
+/* =========================================
+   Win screen: theme reveal + share
+   ========================================= */
+
+.win-badge {
+    background: var(--pico-ins-color);
+    text-align: center;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+}
+
+.reveal-label {
+    margin-bottom: 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.reveal-theme {
+    margin: 0 0 0.75rem;
+    font-family: monospace;
+    font-size: 1.8rem;
+    font-weight: bold;
+    letter-spacing: 0.16em;
+    color: var(--pico-primary);
+}
+
+.reveal-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 0.75rem;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.reveal-word {
+    font-family: monospace;
+    letter-spacing: 0.08em;
+}
+
+.reveal-word mark {
+    background-color: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+    border-radius: 3px;
+    padding: 0 2px;
+}
+
+.reveal-note {
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.share-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: 0.75rem 0 1rem;
+}
+
+.share-row button {
+    width: auto;
+    margin-bottom: 0;
+}
+
+#share-feedback {
+    font-size: 0.8rem;
+    color: var(--pico-primary);
+}
+
+#streak-line {
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dialogs (how to play, win screen) can get taller than a phone screen. */
+dialog article {
+    max-height: 85dvh;
+    overflow-y: auto;
+}

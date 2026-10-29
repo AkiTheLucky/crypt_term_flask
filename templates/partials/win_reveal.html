@@ -1,0 +1,29 @@
+<!-- Swapped into #game-status by /validate on a correct guess. -->
+<article class="win-badge">
+    <strong>UNLOCKED!</strong> You cracked the crypTerm.
+</article>
+
+<div id="win-reveal">
+    <p class="reveal-label">The hidden word was</p>
+    <p class="reveal-theme">{{ theme_word }}</p>
+
+    <ul class="reveal-list">
+        {% for item in reveal %}
+        <li class="reveal-item">
+            <span class="reveal-word">{{ item.html | safe }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <p class="reveal-note">
+        Each column word is related to <strong>{{ theme_word }}</strong> and hides
+        one of its letters. Read the highlighted letters left to right and they
+        spell the answer.
+    </p>
+</div>
+
+<script>
+    if (typeof triggerWin === 'function') {
+        triggerWin();
+    }
+</script>

@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 import random
 import secrets
 import string
+import threading
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -10,7 +13,23 @@ import requests
 from flask import Flask, make_response, render_template, request, session
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16) # Required for Flask session memory
+
+# ------------------------------------------
+# SESSION SECRET
+# ------------------------------------------
+# A randomly generated key at import time means every restart/deploy (and every
+# worker, if you run more than one) signs cookies differently. Anyone with a
+# board open across a restart would then have their session silently invalidated
+# and the puzzle would stop validating. Set SECRET_KEY in the environment and
+# this stays stable forever.
+_secret_key = os.environ.get("SECRET_KEY", "").strip()
+if not _secret_key:
+    _secret_key = secrets.token_hex(16)
+    logging.getLogger(__name__).warning(
+        "SECRET_KEY is not set - falling back to a random key. Every restart "
+        "will invalidate open sessions. Set SECRET_KEY in the environment."
+    )
+app.secret_key = _secret_key
 
 # ==========================================
 # 0. DATABASE CONFIGURATION
@@ -19,9 +38,44 @@ app.secret_key = secrets.token_hex(16) # Required for Flask session memory
 D1_API_URL = os.environ.get("D1_API_URL")
 D1_API_SECRET = os.environ.get("D1_API_SECRET")
 
+# ==========================================
+# 0b. NETWORK / GENERATION LIMITS
+# ==========================================
+# Every outbound call gets a hard timeout and every retry loop gets a cap, so a
+# slow or stuck upstream can fail the request instead of pinning the worker.
+DATAMUSE_TIMEOUT = 6          # seconds, per HTTP call
+DATAMUSE_WORD_ATTEMPTS = 10   # how many random starting letters to try
+MAX_BOARD_ATTEMPTS = 6        # how many full puzzle generations to try
+GENERATION_BUDGET = 20.0      # seconds of wall clock for one board, all attempts
+
+logger = logging.getLogger(__name__)
+
+
+class GenerationError(RuntimeError):
+    """Raised when no playable board could be generated within the limits."""
+
+
+def datamuse(url):
+    """GET a Datamuse URL with a timeout. Raises on non-200 responses."""
+    response = requests.get(url, timeout=DATAMUSE_TIMEOUT)
+    response.raise_for_status()
+    return response.json()
+
+
+def _check_deadline(deadline):
+    if deadline is not None and time.monotonic() > deadline:
+        raise GenerationError(
+            f"Gave up after {GENERATION_BUDGET:.0f}s of upstream slowness"
+        )
+
 
 def d1_query(sql, params=None):
     """Send a SQL query to our Cloudflare D1 Worker."""
+    if not D1_API_URL or not D1_API_SECRET:
+        raise RuntimeError(
+            "D1_API_URL and D1_API_SECRET must be set in the environment."
+        )
+
     if params is None:
         params = []
 
@@ -57,6 +111,38 @@ def d1_execute(sql, params=None):
     """Run an INSERT/UPDATE/DELETE query."""
     return d1_query(sql, params)
 
+
+_puzzle_index_lock = threading.Lock()
+_puzzle_index_ready = False
+
+
+def ensure_puzzle_index():
+    """Best-effort UNIQUE index on puzzle.play_date.
+
+    Without it, two visitors arriving at the same moment on a fresh day can both
+    generate and insert a puzzle, leaving duplicate rows for one date. This runs
+    once per process; if it fails (old duplicates already in the table, worker
+    restricts DDL, ...) the app keeps working and reads stay consistent because
+    every query orders by id and takes the first row.
+    """
+    global _puzzle_index_ready
+    if _puzzle_index_ready:
+        return
+
+    with _puzzle_index_lock:
+        if _puzzle_index_ready:
+            return
+        try:
+            d1_execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_puzzle_play_date "
+                "ON puzzle(play_date)"
+            )
+        except Exception as exc:  # pragma: no cover - depends on D1 state
+            logger.warning("Could not create unique index on puzzle.play_date: %s", exc)
+        finally:
+            # Do not retry on every request, even if it failed.
+            _puzzle_index_ready = True
+
 # ==========================================
 # HELPERS
 # ==========================================
@@ -88,17 +174,28 @@ def shared_suffix_len(s1, s2):
 # 1. CORE GAME GENERATION LOGIC
 # ==========================================
 
-def get_theme_word():
-    popular_words_list = []
-    while not popular_words_list:
+def get_theme_word(deadline=None):
+    """Pick a random, reasonably common dictionary word to build a puzzle around.
+
+    Bounded to DATAMUSE_WORD_ATTEMPTS calls (and to the shared deadline) so a
+    Datamuse miss can never spin forever on a request thread.
+    """
+    for _ in range(DATAMUSE_WORD_ATTEMPTS):
+        _check_deadline(deadline)
         random_letter = random.choice(string.ascii_uppercase)
         random_word_length = random.randint(4, 8) - 1
         number_of_questionmarks = "?" * random_word_length
-        response = requests.get(
-            f"https://api.datamuse.com/words?sp={random_letter}{number_of_questionmarks}&md=f"
-        )
-        response_list = response.json()
 
+        try:
+            response_list = datamuse(
+                f"https://api.datamuse.com/words"
+                f"?sp={random_letter}{number_of_questionmarks}&md=f"
+            )
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("Datamuse lookup failed: %s", exc)
+            continue
+
+        popular_words_list = []
         for item in response_list:
             if "tags" in item and item["tags"]:
                 tag_string = item["tags"][0]
@@ -109,9 +206,15 @@ def get_theme_word():
                         if w.endswith(("LY", "ED", "ING", "TION")):
                             continue
                         popular_words_list.append(item)
-        
-    theme_dict = random.choice(popular_words_list)
-    return theme_dict["word"].upper()
+
+        if popular_words_list:
+            theme_dict = random.choice(popular_words_list)
+            return theme_dict["word"].upper()
+
+    raise GenerationError(
+        f"No theme word found in {DATAMUSE_WORD_ATTEMPTS} attempts"
+    )
+
 
 
 # Kimi renamed this, I changed it back to match your original call
@@ -126,39 +229,43 @@ def get_thematic_bucket(theme_word):
     
     antonyms = set()
     try:
-        resp = requests.get(f"https://api.datamuse.com/words?rel_ant={theme_word}")
+        resp = requests.get(
+            f"https://api.datamuse.com/words?rel_ant={theme_word}",
+            timeout=DATAMUSE_TIMEOUT,
+        )
         if resp.status_code == 200:
             antonyms = {item["word"].upper() for item in resp.json()}
-    except Exception:
+    except (requests.RequestException, ValueError):
         pass
 
     raw_words = {}
     for url, weight in queries:
         try:
-            response = requests.get(url)
-            if response.status_code == 200:
-                for item in response.json():
-                    word = item["word"].upper()
-                    freq = 0.0
-                    pos_tags = []
-                    
-                    if "tags" in item:
-                        for tag in item["tags"]:
-                            if tag.startswith("f:"):
-                                freq = float(tag[2:])
-                            elif tag in ("n", "v", "adj", "adv", "u"):
-                                pos_tags.append(tag)
-                    
-                    score = item.get("score", 0) * weight
-                    
-                    if word not in raw_words or score > raw_words[word]["score"]:
-                        raw_words[word] = {
-                            "freq": freq,
-                            "score": score,
-                            "pos": pos_tags
-                        }
-        except Exception:
+            response = datamuse(url)
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("Datamuse query failed (%s): %s", url, exc)
             continue
+
+        for item in response:
+            word = item["word"].upper()
+            freq = 0.0
+            pos_tags = []
+
+            if "tags" in item:
+                for tag in item["tags"]:
+                    if tag.startswith("f:"):
+                        freq = float(tag[2:])
+                    elif tag in ("n", "v", "adj", "adv", "u"):
+                        pos_tags.append(tag)
+
+            score = item.get("score", 0) * weight
+
+            if word not in raw_words or score > raw_words[word]["score"]:
+                raw_words[word] = {
+                    "freq": freq,
+                    "score": score,
+                    "pos": pos_tags
+                }
 
     candidates = []
     for word, meta in raw_words.items():
@@ -314,15 +421,157 @@ def build_cryptex_matrix(theme_word, thematic_bucket_list):
 
 
 def generate_playable_board():
-    while True:
+    """Generate a board, retrying within a bounded number of attempts and time."""
+    last_error = None
+    deadline = time.monotonic() + GENERATION_BUDGET
+
+    for _ in range(MAX_BOARD_ATTEMPTS):
         try:
-            theme_word = get_theme_word()
+            _check_deadline(deadline)
+            theme_word = get_theme_word(deadline)
             unfiltered_bucket = get_thematic_bucket(theme_word)
             bucket_list = arrange_column_words(theme_word, unfiltered_bucket)
             matrix = build_cryptex_matrix(theme_word, bucket_list)
             return theme_word, matrix
-        except ValueError:
-            pass
+        except (ValueError, GenerationError) as exc:
+            last_error = exc
+            logger.info("Board attempt failed, retrying: %s", exc)
+
+    raise GenerationError(
+        f"Could not generate a board in {MAX_BOARD_ATTEMPTS} attempts: {last_error}"
+    )
+
+
+def build_reveal(matrix, theme_word):
+    """Describe each column word and where the theme letter sits inside it.
+
+    Used on the win screen so the player sees *why* the columns belong together:
+    the highlighted letters, read left to right, spell the theme word.
+    """
+    reveal = []
+    for column, target_char in zip(matrix, theme_word.upper()):
+        word = "".join(ch for ch in column if ch.strip())
+        index = word.find(target_char)
+        if index == -1:
+            html = word
+        else:
+            html = f"{word[:index]}<mark>{word[index]}</mark>{word[index + 1:]}"
+        reveal.append({"word": word, "index": index, "html": html})
+    return reveal
+
+
+
+@app.context_processor
+def inject_asset_version():
+    """Cache-busting token based on the mtime of the static assets.
+
+    Every template shares one value, so a CSS/JS edit reaches the game page and
+    the archive/leaderboard at the same time instead of drifting apart.
+    """
+    return {"asset_version": asset_version()}
+
+
+@app.after_request
+def revalidate_html(response):
+    """Make browsers revalidate pages instead of heuristically caching them.
+
+    Without this, a deploy can leave visitors on an old page that still points
+    at an old ?v= asset, which is exactly the staleness the shared version
+    token is meant to prevent. Responses are still validatable (304s), so this
+    costs almost nothing.
+    """
+    if response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
+ASSET_CACHE = {"value": "1"}
+
+
+def asset_version():
+    if ASSET_CACHE["value"] != "1":
+        return ASSET_CACHE["value"]
+
+    static_dir = os.path.join(app.root_path, "static")
+    newest = 0.0
+    for root, _dirs, files in os.walk(static_dir):
+        for name in files:
+            try:
+                newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+            except OSError:
+                continue
+    ASSET_CACHE["value"] = str(int(newest))
+    return ASSET_CACHE["value"]
+
+
+def load_puzzle_for_date(play_date):
+    """Return (theme_word, matrix) for a date, generating it if missing.
+
+    Uses INSERT OR IGNORE plus a canonical read so two visitors hitting a fresh
+    day at the same moment converge on the same puzzle instead of creating
+    duplicates that the archive then lists twice.
+    """
+    date_str = play_date.isoformat()
+
+    rows = d1_rows(
+        """
+        SELECT theme_word, matrix_json
+        FROM puzzle
+        WHERE play_date = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        [date_str]
+    )
+
+    if rows:
+        return rows[0]["theme_word"], json.loads(rows[0]["matrix_json"])
+
+    ensure_puzzle_index()
+
+    theme_word, matrix = generate_playable_board()
+
+    try:
+        d1_execute(
+            """
+            INSERT OR IGNORE INTO puzzle (play_date, theme_word, matrix_json)
+            VALUES (?, ?, ?)
+            """,
+            [date_str, theme_word, json.dumps(matrix)]
+        )
+    except Exception:
+        # Someone else may have inserted first; re-read below either way.
+        logger.warning("Insert for %s failed, re-reading", date_str, exc_info=True)
+
+    # Always serve whatever row actually won the race.
+    rows = d1_rows(
+        """
+        SELECT theme_word, matrix_json
+        FROM puzzle
+        WHERE play_date = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        [date_str]
+    )
+
+    if not rows:
+        raise RuntimeError(f"Puzzle for {date_str} could not be stored")
+
+    return rows[0]["theme_word"], json.loads(rows[0]["matrix_json"])
+
+
+def serve_board(theme_word, matrix, play_date):
+    session["target_word"] = theme_word
+    session["reveal"] = build_reveal(matrix, theme_word)
+
+    return render_template(
+        "index.html",
+        columns=matrix,
+        pointer_index=len(matrix[0]) - 1,
+        theme_word=theme_word,
+        play_date=play_date
+    )
 
 
 # ==========================================
@@ -333,55 +582,11 @@ def generate_playable_board():
 def index():
     # Get today's date strictly in UTC
     today = datetime.now(timezone.utc).date()
-    today_str = today.isoformat()
 
-    # Ask D1: Do we already have a puzzle for today?
-    rows = d1_rows(
-        """
-        SELECT theme_word, matrix_json
-        FROM puzzle
-        WHERE play_date = ?
-        LIMIT 1
-        """,
-        [today_str]
-    )
+    theme_word, matrix = load_puzzle_for_date(today)
 
-    if rows:
-        # We have one! Load the saved data.
-        theme_word = rows[0]["theme_word"]
-        matrix = json.loads(rows[0]["matrix_json"])
+    return serve_board(theme_word, matrix, today)
 
-        print(f"Loaded existing puzzle for {today}: {theme_word}")
-
-    else:
-        # Brand new day! Generate a fresh puzzle.
-        theme_word, matrix = generate_playable_board()
-
-        # Save it to D1.
-        d1_execute(
-            """
-            INSERT INTO puzzle (play_date, theme_word, matrix_json)
-            VALUES (?, ?, ?)
-            """,
-            [
-                today_str,
-                theme_word,
-                json.dumps(matrix)
-            ]
-        )
-
-        print(f"Generated and saved new puzzle for {today}: {theme_word}")
-
-    session["target_word"] = theme_word
-    pointer_index = len(matrix[0]) - 1
-
-    return render_template(
-        "index.html",
-        columns=matrix,
-        pointer_index=pointer_index,
-        theme_word=theme_word,
-        play_date=today
-    )
 
 @app.route("/validate", methods=["POST"])
 def validate():
@@ -389,32 +594,28 @@ def validate():
     target_word = session.get("target_word", "").upper().strip()
 
     if not user_guess or user_guess != target_word:
-        return "" 
+        return ""
 
-    # We return the badge AND a script block. 
-    # HTMX is smart enough to execute the script instantly upon swap!
-    return '''
-    <article style="background: var(--pico-ins-color); text-align: center; margin: 0.5rem 0; padding: 0.5rem;">
-        <strong>UNLOCKED!</strong> You cracked the crypTerm.
-    </article>
-    <script>
-        if (typeof triggerWin === 'function') {
-            triggerWin();
-        }
-    </script>
-    '''
+    # The reveal (theme word + column words) is only ever sent after a correct
+    # guess, so the answer is not sitting in the page before the player wins.
+    return render_template(
+        "partials/win_reveal.html",
+        theme_word=target_word,
+        reveal=session.get("reveal", [])
+    )
 
 
 @app.route("/archive")
 def archive():
-    # Fetch all puzzles, sorted by newest date first
+    # One row per date: if a race ever produced duplicates, the first insert wins.
     historic_puzzles = d1_rows(
-    """
-    SELECT id, play_date, theme_word, matrix_json
-    FROM puzzle
-    ORDER BY play_date DESC
-    """
-)
+        """
+        SELECT play_date
+        FROM puzzle
+        WHERE id IN (SELECT MIN(id) FROM puzzle GROUP BY play_date)
+        ORDER BY play_date DESC
+        """
+    )
 
     for puzzle in historic_puzzles:
         puzzle["play_date"] = datetime.strptime(
@@ -423,6 +624,7 @@ def archive():
         ).date()
 
     return render_template("archive.html", puzzles=historic_puzzles)
+
 
 @app.route("/play/<puzzle_date>")
 def play_historic(puzzle_date):
@@ -447,6 +649,7 @@ def play_historic(puzzle_date):
         SELECT theme_word, matrix_json
         FROM puzzle
         WHERE play_date = ?
+        ORDER BY id ASC
         LIMIT 1
         """,
         [target_date.isoformat()]
@@ -455,22 +658,12 @@ def play_historic(puzzle_date):
     if not rows:
         return "Puzzle not found for this date.", 404
 
-    # Unpack the puzzle
     theme_word = rows[0]["theme_word"]
     matrix = json.loads(rows[0]["matrix_json"])
 
-    # Set the session target word
-    session["target_word"] = theme_word
-    pointer_index = len(matrix[0]) - 1
-
     # Serve the exact same game page
-    return render_template(
-        "index.html",
-        columns=matrix,
-        pointer_index=pointer_index,
-        theme_word=theme_word,
-        play_date=target_date
-    )
+    return serve_board(theme_word, matrix, target_date)
+
 
 @app.route("/submit_score", methods=["POST"])
 def submit_score():
@@ -544,6 +737,12 @@ def leaderboard(puzzle_date):
         scores=top_scores,
         play_date=target_date
     )
+
+@app.errorhandler(GenerationError)
+def handle_generation_error(exc):
+    logger.error("Puzzle generation failed: %s", exc)
+    return render_template("error.html"), 503
+
 
 if __name__ == "__main__":
     app.run(debug=True)
